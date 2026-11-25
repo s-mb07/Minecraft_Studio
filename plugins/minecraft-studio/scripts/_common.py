@@ -87,9 +87,18 @@ def http_json(url: str, params: dict | None = None, retries: int = 3):
 def download(url: str, dest: Path) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(req, timeout=120) as r, open(dest, "wb") as f:
-        while chunk := r.read(1 << 16):
-            f.write(chunk)
+    try:
+        with urllib.request.urlopen(req, timeout=120) as r, open(dest, "wb") as f:
+            while chunk := r.read(1 << 16):
+                f.write(chunk)
+    except urllib.error.URLError as e:
+        # Python on Windows does not fetch missing intermediate certificates (AIA); the OS curl does.
+        # Safe because every caller verifies the sha512 afterwards.
+        import shutil
+        import subprocess
+        if "CERTIFICATE_VERIFY_FAILED" not in str(e) or not shutil.which("curl"):
+            raise
+        subprocess.run(["curl", "-fsSL", "-A", USER_AGENT, "-o", str(dest), url], check=True)
     return dest
 
 

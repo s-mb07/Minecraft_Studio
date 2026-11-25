@@ -1,0 +1,13 @@
+{
+  "name": "minecraft-studio",
+  "version": "0.1.0",
+  "description": "Modpack factory for Claude Code: staged workflow with user checkpoints, Modrinth tooling, FTB Quests generator, KubeJS balancing, crash-log triage and .mrpack export.",
+  "author": {
+    "name": "Minecraft Studio contributors",
+    "url": "https://github.com/s-mb07/Minecraft_Studio"
+  },
+  "homepage": "https://github.com/s-mb07/Minecraft_Studio",
+  "repository": "https://github.com/s-mb07/Minecraft_Studio",
+  "license": "MIT",
+  "keywords": ["minecraft", "modpack", "modrinth", "ftb-quests", "kubejs", "resource-pack", "shaders"]
+}

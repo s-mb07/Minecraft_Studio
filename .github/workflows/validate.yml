@@ -1,0 +1,26 @@
+name: validate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.9", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Unit tests (offline)
+        run: python -m unittest discover -s tests -v
+      - name: Validate templates and fixtures
+        run: |
+          python plugins/minecraft-studio/scripts/quests.py check plugins/minecraft-studio/templates/quest-design.example.json
+          python plugins/minecraft-studio/scripts/validate.py tests/fixtures/goodrp --mc 1.21.1
+      - name: Scripts compile
+        run: python -m compileall -q plugins/minecraft-studio/scripts

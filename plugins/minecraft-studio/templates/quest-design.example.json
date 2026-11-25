@@ -1,0 +1,51 @@
+{
+  "lang": "en_us",
+  "groups": [
+    { "key": "main", "title": "Main story" }
+  ],
+  "chapters": [
+    {
+      "key": "first_night",
+      "title": "The First Night",
+      "icon": "minecraft:torch",
+      "group": "main",
+      "quests": [
+        {
+          "key": "wood",
+          "title": "Timber",
+          "subtitle": "Everything starts with a tree.",
+          "description": ["The cold comes early here.", "Get wood before dark."],
+          "icon": "minecraft:oak_log",
+          "tasks": [ { "type": "item", "item": "minecraft:oak_log", "count": 16, "consume": false } ],
+          "rewards": [ { "type": "item", "item": "minecraft:bread", "count": 4 } ]
+        },
+        {
+          "key": "tools",
+          "title": "Stone Age",
+          "description": ["Wood breaks. Stone doesn't, not as fast anyway."],
+          "icon": "minecraft:stone_pickaxe",
+          "deps": ["wood"],
+          "tasks": [ { "type": "item", "item": "minecraft:stone_pickaxe", "count": 1 } ],
+          "rewards": [ { "type": "xp", "xp": 50 } ]
+        },
+        {
+          "key": "light",
+          "title": "Keep the Dark Out",
+          "description": ["Torches. Lots of them."],
+          "icon": "minecraft:torch",
+          "deps": ["wood"],
+          "tasks": [ { "type": "item", "item": "minecraft:torch", "count": 32 } ],
+          "rewards": [ { "type": "item", "item": "minecraft:coal", "count": 8 } ]
+        },
+        {
+          "key": "survive",
+          "title": "Dawn",
+          "description": ["You made it. Take a breath."],
+          "deps": ["tools", "light"],
+          "tasks": [ { "type": "checkmark" } ],
+          "rewards": [ { "type": "xp_levels", "xp_levels": 2 } ]
+        }
+      ]
+    }
+  ]
+}

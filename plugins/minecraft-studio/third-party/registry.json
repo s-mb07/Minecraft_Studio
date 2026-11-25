@@ -1,0 +1,126 @@
+{
+  "_comment": "Vetted third-party skills/MCP servers that Minecraft Studio can install via /mc-setup. Each entry was checked on GitHub (exists, licence, recent activity). We only LINK to these projects; nothing is copied. Re-check with: python scripts/registry_check.py (from the plugin root)",
+  "checked_on": "2026-11-25",
+  "entries": [
+    {
+      "id": "ftb-quests",
+      "repo": "ParticleG/ftb-quests",
+      "license": "MIT",
+      "kind": "skill",
+      "stage": "quests",
+      "purpose": "Deep reference for FTB Quests SNBT: tasks, rewards, styling, KubeJS custom rewards.",
+      "install": "npx -y skills add ParticleG/ftb-quests --agent claude-code -y",
+      "recommended": true
+    },
+    {
+      "id": "jahrome907-resource-pack",
+      "repo": "Jahrome907/minecraft-agent-skills",
+      "license": "MIT",
+      "kind": "skill",
+      "stage": "resource-pack",
+      "purpose": "Resource pack internals: pack.mcmeta, models, blockstates, sounds, fonts, animations.",
+      "install": "npx -y skills add Jahrome907/minecraft-agent-skills --skill minecraft-resource-pack --agent claude-code -y",
+      "recommended": true
+    },
+    {
+      "id": "jahrome907-datapack",
+      "repo": "Jahrome907/minecraft-agent-skills",
+      "license": "MIT",
+      "kind": "skill",
+      "stage": "quests,balancing",
+      "purpose": "Vanilla datapacks: advancements, functions, loot tables, tags, recipes, worldgen.",
+      "install": "npx -y skills add Jahrome907/minecraft-agent-skills --skill minecraft-datapack --agent claude-code -y",
+      "recommended": true
+    },
+    {
+      "id": "jahrome907-imagegen",
+      "repo": "Jahrome907/minecraft-agent-skills",
+      "license": "MIT",
+      "kind": "skill",
+      "stage": "design",
+      "purpose": "Pack icons, banners, thumbnails, texture concepts and UI mockups.",
+      "install": "npx -y skills add Jahrome907/minecraft-agent-skills --skill minecraft-imagegen --agent claude-code -y",
+      "recommended": false
+    },
+    {
+      "id": "jahrome907-modding",
+      "repo": "Jahrome907/minecraft-agent-skills",
+      "license": "MIT",
+      "kind": "skill",
+      "stage": "mod-dev",
+      "purpose": "Writing mods (Fabric, NeoForge, Forge): code, assets, Gradle builds. Needed only for custom mods.",
+      "install": "npx -y skills add Jahrome907/minecraft-agent-skills --skill minecraft-modding --agent claude-code -y",
+      "recommended": false
+    },
+    {
+      "id": "jahrome907-multiloader",
+      "repo": "Jahrome907/minecraft-agent-skills",
+      "license": "MIT",
+      "kind": "skill",
+      "stage": "mod-dev",
+      "purpose": "One codebase for Fabric + NeoForge (Architectury / multiloader).",
+      "install": "npx -y skills add Jahrome907/minecraft-agent-skills --skill minecraft-multiloader --agent claude-code -y",
+      "recommended": false
+    },
+    {
+      "id": "core-shaders",
+      "repo": "dorondo0000/minecraft-core-shaders-skill",
+      "license": "MIT",
+      "kind": "plugin",
+      "stage": "shaders",
+      "purpose": "Vanilla core shaders (GLSL inside a resource pack). Only for custom vanilla effects; Iris shaderpacks don't need it.",
+      "install": "claude plugin marketplace add dorondo0000/minecraft-core-shaders-skill && claude plugin install minecraft-core-shaders@mc-core-shaders",
+      "recommended": false
+    },
+    {
+      "id": "mcat",
+      "repo": "choice21hax/MinecraftSkills",
+      "license": "Apache-2.0",
+      "kind": "skill",
+      "stage": "audit,migration",
+      "purpose": "Extra modpack/migration/debug skills (minecraft-modpack, minecraft-migrate, minecraft-debug). Young project: review before use.",
+      "install": "npx -y skills add choice21hax/MinecraftSkills --agent claude-code -y",
+      "recommended": false
+    },
+    {
+      "id": "prismlauncher-mcp",
+      "repo": "KeiNodens/prismlauncher-mcp",
+      "license": "MIT",
+      "kind": "mcp",
+      "stage": "test",
+      "purpose": "Lets Claude create Prism Launcher instances, install mods, launch the game, read logs and screenshots. Destructive tools require confirm:true.",
+      "install": "git clone https://github.com/KeiNodens/prismlauncher-mcp && cd prismlauncher-mcp && npm install && npm run build && claude mcp add prism -- node <ABSOLUTE_PATH>/prismlauncher-mcp/dist/index.js",
+      "manual": true,
+      "recommended": true
+    },
+    {
+      "id": "blockbench-mcp",
+      "repo": "RenasDemirbas/BlockBenchMCP",
+      "license": "GPL-3.0",
+      "kind": "mcp",
+      "stage": "assets",
+      "purpose": "Model, texture, animate and export Blockbench models from Claude. GPL-3.0: fine to use, don't copy its code into this MIT repo.",
+      "install": "See https://github.com/RenasDemirbas/BlockBenchMCP#readme (Blockbench plugin + MCP server).",
+      "manual": true,
+      "recommended": false
+    },
+    {
+      "id": "mods-localizer",
+      "repo": "Y-RyuZU/MinecraftModsLocalizer",
+      "license": "MIT",
+      "kind": "app",
+      "stage": "localization",
+      "purpose": "Desktop app that translates mods, FTB Quests and Patchouli books with an LLM.",
+      "install": "Download a release from https://github.com/Y-RyuZU/MinecraftModsLocalizer/releases",
+      "manual": true,
+      "recommended": false
+    }
+  ],
+  "rejected": [
+    { "repo": "Aknirex/minecraft-modpack-builder", "reason": "Archived by its owner (2026-11)." },
+    { "repo": "RBC-X/ai-modpack-builder", "reason": "Repo only ships signed binaries, no licence, no source to review." },
+    { "repo": "Riloox/minecraft-mod-builder", "reason": "No licence. Revisit for v2 (mod creation)." },
+    { "repo": "logan-lopez/claude-modpack", "reason": "No licence, no description." },
+    { "repo": "iTrooz/ModpackResolver", "reason": "Useful web tool, not an agent skill. Linked in docs only." }
+  ]
+}

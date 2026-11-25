@@ -1,0 +1,7 @@
+---- Minecraft Crash Report ----
+Description: Mixin apply failed
+
+org.spongepowered.asm.mixin.transformer.throwables.MixinTransformerError: An unexpected critical error was encountered
+Caused by: org.spongepowered.asm.mixin.throwables.MixinApplyError: Mixin [coolmod.mixins.json:WorldRendererMixin] from phase [DEFAULT] in config [coolmod.mixins.json] FAILED during APPLY
+Mixin apply for mod coolmod failed coolmod.mixins.json:WorldRendererMixin from mod coolmod
+Suspected Mods: Cool Mod (coolmod)

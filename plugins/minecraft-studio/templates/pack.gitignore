@@ -1,0 +1,8 @@
+dist/
+*.mrpack
+*-server.zip
+.run/
+instance/
+logs/
+crash-reports/
+*.log

@@ -1,0 +1,22 @@
+{
+  "name": "Test Pack", "version": "0.1.0", "minecraft": "1.21.1", "loader": "fabric", "loader_version": "0.16.9",
+  "java": "21", "entries": [
+    {"slug": "fabric-api", "project_id": "P7dR8mSH", "title": "Fabric API", "type": "mod", "license": "Apache-2.0",
+     "version_id": "v1", "version_number": "0.116.0+1.21.1", "version_type": "release", "loaders": ["fabric"],
+     "game_versions": ["1.21.1"], "path": "mods/fabric-api.jar",
+     "file": {"url": "https://cdn.modrinth.com/data/P7dR8mSH/versions/v1/fabric-api.jar", "size": 10, "sha1": "a", "sha512": "b"},
+     "env": {"client": "required", "server": "required"}, "reason": "user", "dependencies": []},
+    {"slug": "modmenu", "project_id": "mOgUt4GM", "title": "Mod Menu", "type": "mod", "license": "MIT",
+     "version_id": "v2", "version_number": "11.0.5", "version_type": "release", "loaders": ["fabric"],
+     "game_versions": ["1.21.1"], "path": "mods/modmenu.jar",
+     "file": {"url": "https://cdn.modrinth.com/data/mOgUt4GM/versions/v2/modmenu.jar", "size": 10, "sha1": "c", "sha512": "d"},
+     "env": {"client": "required", "server": "unsupported"}, "reason": "user",
+     "dependencies": [{"project_id": "P7dR8mSH", "type": "required"}]},
+    {"slug": "sodium", "project_id": "AANobbMI", "title": "Sodium", "type": "mod", "license": "LicenseRef-Polyform-Shield-1.0.0",
+     "version_id": "v3", "version_number": "0.6.0", "version_type": "beta", "loaders": ["fabric"],
+     "game_versions": ["1.21.1"], "path": "mods/sodium.jar",
+     "file": {"url": "https://cdn.modrinth.com/data/AANobbMI/versions/v3/sodium.jar", "size": 10, "sha1": "e", "sha512": "f"},
+     "env": {"client": "required", "server": "unsupported"}, "reason": "user",
+     "dependencies": [{"project_id": "MISSING1", "type": "required"}]}
+  ], "unresolved": []
+}

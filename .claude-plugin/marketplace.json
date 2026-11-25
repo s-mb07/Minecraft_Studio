@@ -1,0 +1,21 @@
+{
+  "name": "minecraft-studio",
+  "owner": {
+    "name": "Minecraft Studio contributors",
+    "url": "https://github.com/s-mb07/Minecraft_Studio"
+  },
+  "metadata": {
+    "description": "Free, open methods and skills that let Claude build Minecraft modpacks end to end: brief, mod selection, dependency audit, quests, balancing, resource/shader packs, testing and export.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "minecraft-studio",
+      "source": "./plugins/minecraft-studio",
+      "description": "Modpack factory for Claude Code: staged workflow with user checkpoints, Modrinth tooling, FTB Quests generator, KubeJS balancing, crash-log triage and .mrpack export.",
+      "version": "0.1.0",
+      "license": "MIT",
+      "keywords": ["minecraft", "modpack", "modrinth", "ftb-quests", "kubejs", "resource-pack", "shaders", "fabric", "neoforge"]
+    }
+  ]
+}

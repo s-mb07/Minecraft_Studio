@@ -297,3 +297,22 @@ class TestOrientation(unittest.TestCase):
         self.assertEqual(e.check_orientation(spec, geo), [])
         spec["bones"][0]["expect"] = {"tip": ["down"]}
         self.assertTrue(e.check_orientation(spec, geo))
+
+
+class TestExplodedAO(unittest.TestCase):
+    def test_explode_keeps_world_pose_and_separates_blocks(self):
+        import entity_gen as e
+        spec = json.loads((ROOT / "plugins/minecraft-studio/templates/entity/cave_crawler.json").read_text())
+        geo, _, _, _ = e.build(spec, Path(tempfile.mkdtemp()))
+        a, b = e.boxes(geo), e.boxes(e.explode_geo(geo, spec, gap=0))
+        self.assertLess(max(abs(x[1][i] - y[1][i]) for x, y in zip(a, b) for i in range(3)), 1e-6)
+        self.assertLess(max(abs(x[2][k][i] - y[2][k][i]) for x, y in zip(a, b) for k in range(3) for i in range(3)), 1e-6)
+        cl = e.rigid_clusters(spec)
+        self.assertNotEqual(cl["leg_left_0"], cl["leg_left_0_lower"])   # both animate: separate blocks
+        far = e.boxes(e.explode_geo(geo, spec, gap=48))
+        by = {}
+        for (bn, c, _, _) in far:
+            by.setdefault(cl[bn], []).append(c)
+        blocks = list(by.values())
+        # different blocks never overlap once exploded
+        self.assertTrue(all(abs(p[0] - q[0]) > 8 or abs(p[2] - q[2]) > 8 for i, A in enumerate(blocks) for B in blocks[i + 1:] for p in A[:1] for q in B[:1]))

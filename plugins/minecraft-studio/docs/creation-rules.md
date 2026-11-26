@@ -61,8 +61,14 @@ reference rigs. Each line is a yes/no check.
 - **Animated entities: no shading in the texture.** The game lights the model. Painted light (bright tops,
   dark bottoms) and baked AO turn wrong as soon as a limb or the head rotates. `entity_gen` paints entities
   unlit by default: flat material colour, 1-px outline, material motifs.
-- Baked AO (`bb_render.py --ao`, Baked AO plugin on one merged mesh) and lit painting (`"lighting": "lit"`) are
-  only for **static** things: blocks, items, non-animated props.
+- **Animated entities: exploded AO.** `bb_render.py --ao --explode <spec>` pulls every rigid block apart
+  before baking (a bone with a `role` or `"animated": true`, plus its decorative children). Each part keeps only
+  its own occlusion: under the collar, plate edges, gauntlet on the forearm. That stays valid in any pose. One
+  bake, about 2 min at 256×512.
+- Full assembled AO (`--ao` without `--explode`) and lit painting (`"lighting": "lit"`) are only for **static**
+  things: blocks, items, non-animated props.
+- **The Baked AO plugin's default shadow colour is violet** (36, 11, 55). `bb_render` always sets a neutral dark
+  brown shadow and a warm highlight. Never bake with the defaults.
 - Shadow colours **never go purple or violet**: cool materials keep their own hue when darker, warm ones drift
   slightly to red-brown.
 

@@ -79,17 +79,29 @@ def load_model(m: MCP, geo: Path, tex: Path, name: str):
     m.js("const t=Texture.all[0]; Cube.all.forEach(c=>{for(const f in c.faces){c.faces[f].texture=t.uuid}}); Canvas.updateAll(); 'ok'")
 
 
-AO_SETTINGS = {"shadow_alpha": 0.85, "shadow_gamma": 0.8, "ao_shadow_size": 6, "highlight_alpha": 0.35,
+AO_SETTINGS = {"shadow_color": "#22180f", "highlight_color": "#fff2d6", "shadow_alpha": 0.85, "shadow_gamma": 0.8, "ao_shadow_size": 6, "highlight_alpha": 0.35,
                "highlight_gamma": 1.4, "ao_highlight_size": 2, "samples": 400, "sample_method": "uniform",
                "simulate_ground_plane": True, "retain_texture_transparency": True}
 
 
-def bake_ao(m: MCP, geo: Path, tex: Path, out_png: Path, timeout: int = 240, per_mesh: bool = False,
-            settings: dict | None = None) -> bool:
+# The plugin's DEFAULT shadow colour is violet (36, 11, 55): always set neutral dark brown + warm highlight.
+AO_EXPLODED = {"shadow_color": "#22180f", "highlight_color": "#fff2d6", "shadow_alpha": 0.6, "shadow_gamma": 1.0, "ao_shadow_size": 4, "highlight_alpha": 0.25,
+               "highlight_gamma": 1.4, "ao_highlight_size": 2, "samples": 200, "sample_method": "uniform",
+               "simulate_ground_plane": False, "retain_texture_transparency": True}
+
+
+def bake_ao(m: MCP, geo: Path, tex: Path, out_png: Path, timeout: int = 900, per_mesh: bool = False,
+            settings: dict | None = None, spec: Path | None = None) -> bool:
     """Mr Salmon's Baked AO bakes ONE selected mesh, and GeckoLib projects forbid meshes. So: temporary Generic
     project -> import geo -> texture on every face -> cubes to meshes -> merge into one mesh (parts occlude each
     other) -> bake with the plugin's remembered settings -> read the texture back."""
     import time
+    if spec:  # exploded bake: rigid blocks pulled apart, so no part shadows another (valid when animated)
+        import entity_gen
+        g = entity_gen.explode_geo(json.loads(geo.read_text(encoding="utf-8")), json.loads(spec.read_text(encoding="utf-8")))
+        geo = out_png.with_name(out_png.stem + "_exploded.geo.json")
+        geo.write_text(json.dumps(g), encoding="utf-8")
+        settings = settings or AO_EXPLODED
     m.call("create_project", name="ms_ao_bake", format="free")
     m.call("from_geo_json", geojson=str(geo.resolve()))
     m.call("create_texture", name=tex.stem, data=str(tex.resolve()))
@@ -183,6 +195,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("geo"); ap.add_argument("--texture", required=True); ap.add_argument("--out", required=True)
     ap.add_argument("--poses"); ap.add_argument("--size", type=int, default=384); ap.add_argument("--ao", action="store_true")
+    ap.add_argument("--explode", metavar="SPEC", help="exploded AO bake for animated entities: rigid blocks from the "
+                    "entity_gen spec are pulled apart before baking (no cross-part shadows)")
     ap.add_argument("--per-mesh", action="store_true", help="bake each part alone (no cross-part occlusion)")
     ap.add_argument("--snap", action="store_true", help="snap AO colours back to the palette (stricter pixel art, weaker AO)")
     ap.add_argument("--save-bbmodel", help="also save an editable .bbmodel (geo + texture + animations)")
@@ -203,7 +217,8 @@ def main():
     # frame the model: distance from the bounding sphere (perspective ~ 45 deg) so it fills ~80% of the tile
     center, radius = [0, h * 0.5, 0], ((h / 2) ** 2 + w ** 2) ** 0.5 * 2.3
     if a.ao:
-        ok = bake_ao(m, geo, tex, tex.with_name(tex.stem + "_ao.png"), per_mesh=a.per_mesh)
+        ok = bake_ao(m, geo, tex, tex.with_name(tex.stem + "_ao.png"), per_mesh=a.per_mesh,
+                     spec=Path(a.explode) if a.explode else None)
         if ok and a.snap:
             snap_palette(tex, tex.with_name(tex.stem + "_ao.png"))
         print(f"AO -> {tex.with_name(tex.stem + '_ao.png')}" if ok else "LOOK: AO bake timed out (texture unchanged)")

@@ -518,14 +518,88 @@ def boxes(geo: dict, frame: dict | None = None) -> list:
         tf[name] = (WR, [off[i] + PT[i] - rp[i] for i in range(3)])
         return tf[name]
     out = []
+    for b, c, M, ctr in world_cubes(geo, T):
+        inf = c.get("inflate", 0)
+        out.append((b["name"], ctr, [[M[r][k] for r in range(3)] for k in range(3)],
+                    [max(0.01, c["size"][i] / 2 + inf) for i in range(3)]))
+    return out
+
+
+def world_cubes(geo: dict, T=None):
+    """(bone, cube, world rotation matrix, world centre) for every cube, including cube-level rotations."""
+    bones = geo["minecraft:geometry"][0]["bones"]
+    if T is None:
+        by = {b["name"]: b for b in bones}
+        tf = {}
+
+        def T(name):  # noqa: F811 - rest pose transform
+            if name in tf:
+                return tf[name]
+            b = by[name]
+            R = _rot(*b.get("rotation", [0, 0, 0]))
+            pv = b.get("pivot", [0, 0, 0])
+            PR, PT = T(b["parent"]) if b.get("parent") else ([[1, 0, 0], [0, 1, 0], [0, 0, 1]], [0, 0, 0])
+            WR = _mm(PR, R)
+            off = _mv(PR, pv)
+            rp = _mv(WR, pv)
+            tf[name] = (WR, [off[i] + PT[i] - rp[i] for i in range(3)])
+            return tf[name]
     for b in bones:
         WR, WT = T(b["name"])
         for c in b.get("cubes", []):
-            inf = c.get("inflate", 0)
-            w = _mv(WR, [c["origin"][i] + c["size"][i] / 2 for i in range(3)])
-            out.append((b["name"], [w[i] + WT[i] for i in range(3)], [[WR[r][k] for r in range(3)] for k in range(3)],
-                        [max(0.01, c["size"][i] / 2 + inf) for i in range(3)]))
+            lc = [c["origin"][i] + c["size"][i] / 2 for i in range(3)]
+            M = WR
+            if c.get("rotation") and any(c["rotation"]):
+                Rc, pc = _rot(*c["rotation"]), c.get("pivot", [0, 0, 0])
+                q = _mv(Rc, [lc[i] - pc[i] for i in range(3)])
+                lc = [q[i] + pc[i] for i in range(3)]
+                M = _mm(WR, Rc)
+            w = _mv(WR, lc)
+            yield b, c, M, [w[i] + WT[i] for i in range(3)]
+
+
+def _euler_geo(M) -> list:
+    """Inverse of _rot: world matrix -> geo rotation [x, y, z] (degrees)."""
+    ry = math.degrees(math.asin(max(-1.0, min(1.0, -M[2][0]))))
+    rx = math.degrees(math.atan2(M[2][1], M[2][2]))
+    rz = math.degrees(math.atan2(M[1][0], M[0][0]))
+    return [round(-rx, 4), round(ry, 4), round(-rz, 4)]
+
+
+def rigid_clusters(spec: dict) -> dict:
+    """bone -> cluster name. A bone that animates (has a role) starts its own rigid block; decorative children
+    (horns, brows, armour pieces without a role) belong to the block of their nearest animated ancestor."""
+    by = {b["name"]: b for b in spec["bones"]}
+    out = {}
+    for b in spec["bones"]:
+        n = b["name"]
+        while n and not (by[n].get("role") or by[n].get("animated")):
+            n = by[n].get("parent")
+        out[b["name"]] = n or "root"
     return out
+
+
+def explode_geo(geo: dict, spec: dict, gap: float = 48) -> dict:
+    """Same cubes and UVs, every rigid block moved far from the others (for AO without cross-part shadows).
+    Each cube becomes a top-level bone carrying its world rotation, so parent rotations can't pull blocks back."""
+    cl = rigid_clusters(spec)
+    names = sorted(set(cl.values()), key=list(cl.values()).index)
+    offset = {n: [(k % 5) * gap, 0, (k // 5) * gap] for k, n in enumerate(names)}
+    g = json.loads(json.dumps(geo))
+    desc = g["minecraft:geometry"][0]
+    bones = []
+    for k, (b, c, M, ctr) in enumerate(world_cubes(geo)):
+        o = offset[cl.get(b["name"], "root")]
+        p = [ctr[i] + o[i] for i in range(3)]
+        cube = {"origin": [p[i] - c["size"][i] / 2 for i in range(3)], "size": c["size"], "uv": c["uv"]}
+        if c.get("inflate"):
+            cube["inflate"] = c["inflate"]
+        if c.get("mirror"):
+            cube["mirror"] = True
+        bones.append({"name": f"{b['name']}__{k}", "pivot": p, "rotation": _euler_geo(M), "cubes": [cube]})
+    desc["bones"] = bones
+    desc["description"]["visible_bounds_width"] = 64
+    return g
 
 
 def _sat(a, b, margin=0.05) -> bool:

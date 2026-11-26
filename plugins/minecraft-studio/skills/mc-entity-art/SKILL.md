@@ -77,6 +77,21 @@ add a suffix instead (`_v2`, `_d4_ao`).
 | Bone View | rig check (pivots and hierarchy) before animating |
 | Voxel Shape Generator / glTF importer | hitboxes for block entities / importing Blender meshes (Generic projects) |
 
+## No overlap, no interpenetration (user review of the first test)
+- **Chained parts must not share face planes.** Upper and lower limb, body and plate, head and jaw would z-fight
+  at the joint. `entity_gen.py` makes each hierarchy level 0.01 thinner and each extra cube of a bone 0.005
+  larger, using inflate. It's invisible and the UVs stay the same. When modelling by hand in Blockbench, do the
+  same: sizes very slightly different (inflate ±0.01), never exactly equal touching faces.
+- **Leave room for motion when placing limbs.** Neighbouring legs that swing in opposite phase converge. The gap
+  between them must be ≥ 2 × length × sin(swing angle). For example, a 7-long leg swinging 22° needs about
+  5 units between neighbours. Increase the spacing or reduce the swing in the spec rather than accepting overlap.
+- `entity_gen.py` checks every animation frame for parts passing through each other (oriented boxes, forward
+  kinematics). It ignores parts attached at rest and parent/child joints.
+  - Colliding bones are damped automatically, down to 50% at most.
+  - What remains prints as `[LOOK] walk @ 0.3s: leg_left_0 passes through leg_left_1`. Fix those in the spec
+    (spacing, phase, rest pose), then regenerate.
+  - Show the user a pose tile of the worst frame.
+
 ## Fix-ups seen in practice
 - Z-fighting between coplanar cubes → `inflate` 0.001 on the front cube.
 - Outlines are a style choice (black vs darker local colour). On 3D entities, prefer darker local colour.

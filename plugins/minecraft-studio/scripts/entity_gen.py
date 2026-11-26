@@ -185,6 +185,13 @@ def build(spec: dict, root: Path):
                         glow.set(X, Y, c2); glow_used = True
     # geometry
     bones = []
+    parent = {b["name"]: b.get("parent") for b in spec["bones"]}
+
+    def depth(n):
+        d = 0
+        while parent.get(n):
+            n, d = parent[n], d + 1
+        return d
     for b in spec["bones"]:
         gb = {"name": b["name"], "pivot": b.get("pivot", [0, 0, 0])}
         if b.get("parent"):
@@ -196,6 +203,12 @@ def build(spec: dict, root: Path):
             gb["cubes"] = []
             for c in sorted(cs, key=lambda c: c["idx"]):
                 gc = {"origin": c["origin"], "size": c["size"], "uv": c["uv"]}
+                # Anti-overlap: chained segments (upper/lower limb, body/plate) share face planes at the joints
+                # and z-fight. Each hierarchy level is 0.01 thinner and each extra cube of a bone 0.005 larger,
+                # so no two touching faces are coplanar. Invisible, and inflate leaves the UVs untouched.
+                auto = round(-0.01 * depth(b["name"]) + 0.005 * c["idx"], 3)
+                if "inflate" not in c and auto:
+                    c["inflate"] = auto
                 for k in ("inflate", "mirror", "rotation", "pivot"):
                     if c.get(k):
                         gc[k] = c[k]
@@ -303,6 +316,10 @@ def motion(kind: str, b: dict, t: float, L: float, spec: dict):
             rot[2] = s * env(t, [(0, 0), (0.6 * L, -40), (L, -50)])
         elif role in ("antenna", "jaw"):
             rot[0] = env(t, [(0, 0), (0.6 * L, -20), (L, -25)])
+    k = b.get("_amp", {}).get(kind, 1.0)  # damping set by fix_collisions
+    if role != "root":
+        rot = [v * k for v in rot]
+        pos = [v * k for v in pos]
     return rot, pos
 
 
@@ -331,6 +348,124 @@ def animations(spec: dict) -> dict:
                 bones[b["name"]] = ch
         out[f"animation.{spec['id']}.{name}"] = {"loop": loop, "animation_length": L, "bones": bones}
     return {"format_version": "1.8.0", "animations": out, "geckolib_format_version": 2}
+
+
+# ---------------------------------------------------------------- collisions during animation
+def _mm(a, b):
+    return [[sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
+
+
+def _mv(a, v):
+    return [sum(a[i][k] * v[k] for k in range(3)) for i in range(3)]
+
+
+def _rot(rx, ry, rz):
+    """Rotation matrix, Blockbench/Bedrock order (Z, then Y, then X)."""
+    def m(a, axis):
+        c, s_ = math.cos(math.radians(a)), math.sin(math.radians(a))
+        return {"x": [[1, 0, 0], [0, c, -s_], [0, s_, c]], "y": [[c, 0, s_], [0, 1, 0], [-s_, 0, c]],
+                "z": [[c, -s_, 0], [s_, c, 0], [0, 0, 1]]}[axis]
+    return _mm(_mm(m(rz, "z"), m(ry, "y")), m(rx, "x"))
+
+
+def boxes(geo: dict, frame: dict | None = None) -> list:
+    """World oriented boxes (bone, centre, axes, half sizes) for a frame {bone: (rot, pos)}."""
+    frame = frame or {}
+    bones = geo["minecraft:geometry"][0]["bones"]
+    by = {b["name"]: b for b in bones}
+    tf = {}
+
+    def T(name):
+        if name in tf:
+            return tf[name]
+        b = by[name]
+        r0 = b.get("rotation", [0, 0, 0])
+        ar, ap = frame.get(name, ([0, 0, 0], [0, 0, 0]))
+        R = _rot(*(r0[i] + ar[i] for i in range(3)))
+        pv = b.get("pivot", [0, 0, 0])
+        PR, PT = T(b["parent"]) if b.get("parent") else ([[1, 0, 0], [0, 1, 0], [0, 0, 1]], [0, 0, 0])
+        WR = _mm(PR, R)   # x' = PR (R (x - pv) + pv + pos) + PT
+        off = _mv(PR, [pv[i] + ap[i] for i in range(3)])
+        rp = _mv(WR, pv)
+        tf[name] = (WR, [off[i] + PT[i] - rp[i] for i in range(3)])
+        return tf[name]
+    out = []
+    for b in bones:
+        WR, WT = T(b["name"])
+        for c in b.get("cubes", []):
+            inf = c.get("inflate", 0)
+            w = _mv(WR, [c["origin"][i] + c["size"][i] / 2 for i in range(3)])
+            out.append((b["name"], [w[i] + WT[i] for i in range(3)], [[WR[r][k] for r in range(3)] for k in range(3)],
+                        [max(0.01, c["size"][i] / 2 + inf) for i in range(3)]))
+    return out
+
+
+def _sat(a, b, margin=0.05) -> bool:
+    """Oriented-box overlap (separating axis theorem); the margin ignores grazing contact."""
+    _, ca, A, ea = a
+    _, cb, B, eb = b
+    d = [cb[i] - ca[i] for i in range(3)]
+    axes = A + B + [[u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]] for u in A for v in B]
+    for ax in axes:
+        n = math.sqrt(sum(x * x for x in ax))
+        if n < 1e-6:
+            continue
+        ax = [x / n for x in ax]
+        ra = sum(ea[i] * abs(sum(A[i][k] * ax[k] for k in range(3))) for i in range(3))
+        rb = sum(eb[i] * abs(sum(B[i][k] * ax[k] for k in range(3))) for i in range(3))
+        if abs(sum(d[k] * ax[k] for k in range(3))) > ra + rb - margin:
+            return False
+    return True
+
+
+def collisions(spec: dict, geo: dict, anim: dict, step: int = 2) -> list:
+    """(animation, time, boneA, boneB) for parts that pass through each other during an animation although they
+    don't touch at rest (touching at rest = attached by design). Parent/child joints are ignored."""
+    parent = {b["name"]: b.get("parent") for b in spec["bones"]}
+    rest = boxes(geo)
+    attached = {frozenset((a[0], b[0])) for i, a in enumerate(rest) for b in rest[i + 1:] if _sat(a, b)}
+    hits = []
+    for name, a in anim["animations"].items():
+        keys = []
+        for ch in a["bones"].values():
+            keys = sorted((ch.get("rotation") or ch.get("position")).keys(), key=float)
+            break
+        for t in keys[::step]:
+            frame = {bn: (ch.get("rotation", {}).get(t, [0, 0, 0]), ch.get("position", {}).get(t, [0, 0, 0]))
+                     for bn, ch in a["bones"].items()}
+            bx = boxes(geo, frame)
+            for i, p in enumerate(bx):
+                for q in bx[i + 1:]:
+                    if p[0] == q[0] or parent.get(p[0]) == q[0] or parent.get(q[0]) == p[0]:
+                        continue
+                    if frozenset((p[0], q[0])) in attached:
+                        continue
+                    if _sat(p, q):
+                        hits.append((name.split(".")[-1], float(t), p[0], q[0]))
+    return hits
+
+
+def fix_collisions(spec: dict, geo: dict, rounds: int = 5):
+    """Damp the colliding bones' motion (x0.8 per round, per animation) until no part passes through another.
+    Returns (animations, remaining hits). The root's death roll is never damped."""
+    anim = animations(spec)
+    by = {b["name"]: b for b in spec["bones"]}
+    for _ in range(rounds):
+        hits = collisions(spec, geo, anim)
+        if not hits:
+            return anim, []
+        changed = False
+        for kind, _t, a, b in hits:
+            for n in (a, b):
+                if by[n].get("role") and by[n]["role"] not in ("root", "body"):
+                    amp = by[n].setdefault("_amp", {})
+                    new = max(0.5, round(amp.get(kind, 1.0) * 0.85, 3))  # floor: never kill the motion
+                    changed |= new != amp.get(kind, 1.0)
+                    amp[kind] = new
+        if not changed:
+            break  # what is left needs a spec change (spacing between limbs, phase, rest pose)
+        anim = animations(spec)
+    return anim, collisions(spec, geo, anim)
 
 
 def pose(geo: dict, anim: dict, name: str, t: float) -> dict:
@@ -365,7 +500,8 @@ def main():
         spec["density"] = a.density
     out = Path(a.out)
     geo, img, glow, used = build(spec, out)
-    anim = animations(spec)
+    anim, left = fix_collisions(spec, geo)
+    damped = {b["name"]: b["_amp"] for b in spec["bones"] if b.get("_amp")}
     i = spec["id"]
     (out / "geo/entity").mkdir(parents=True, exist_ok=True)
     (out / "animations/entity").mkdir(parents=True, exist_ok=True)
@@ -383,6 +519,10 @@ def main():
     nc = sum(len(b.get("cubes", [])) for b in geo["minecraft:geometry"][0]["bones"])
     print(f"ENTITY {i}: {nc} cubes, {nb} bones, texture {img.w}x{img.h} ({used}px rows used), "
           f"{len(anim['animations'])} animations{', glowmask' if glow else ''}")
+    if damped:
+        print("  collisions fixed by damping: " + ", ".join(f"{k} {v}" for k, v in damped.items()))
+    for kind, t, a_, b_ in left[:5]:
+        print(f"  [LOOK] {kind} @ {t}s: {a_} passes through {b_} (change phase or rest pose in the spec)")
 
 
 if __name__ == "__main__":

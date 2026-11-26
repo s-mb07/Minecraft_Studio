@@ -40,6 +40,15 @@ easeIn/Out/InOut + sine, quad, cubic, quart, quint, expo, circ, back, elastic, b
 - **Serpent:** sine wave travelling down the spine, phase increasing from head to tail.
 - **Flyer:** the downstroke lifts the body, the body lags the wings slightly.
 
+## Collisions
+- Limbs must never pass through other parts (legs through legs, the jaw through the head, the tail through the
+  body, legs curling into the body on death).
+- `entity_gen.py` checks every frame, damps the offenders (floor 50%) and reports the rest as LOOK.
+- Fix the rest by changing the phase (neighbours not in exact antiphase), the rest pose (splay legs outwards), or
+  the spacing (see mc-entity-art). Damping further would make the animation stiff.
+- When polishing by hand in Blockbench, scrub the timeline at contact and passing poses from the top view and
+  the side view.
+
 ## Generate, then polish
 - In the spec, each bone gets a `role` (root, body, head, jaw, antenna, tail, leg, leg_lower) plus `side`
   (-1/1), `phase` and `drag`. `animations: {name: {length, loop: loop|once|hold}}`.

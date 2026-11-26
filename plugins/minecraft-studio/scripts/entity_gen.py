@@ -100,55 +100,69 @@ def pack(cubes, tw, th):
 
 
 # ---------------------------------------------------------------- painting
-LIGHT = {"up": 3, "north": 2, "east": 2, "west": 2, "south": 1, "down": 0}
+# 5-shade ramp per material: 0 deep shadow / outline, 1 shadow, 2 base, 3 light, 4 highlight.
+LIGHT = {"up": 3, "north": 2, "east": 2, "west": 2, "south": 1, "down": 1}
 
 
 def paint_face(img, rect, face, mat, rmp, seed, n=1):
-    """n = pixels per model unit. Patterns live in model units (scale with the cube); rim light, contact shadow
-    and clusters stay pixel-sized, so a higher density gives finer shading, not just bigger pixels."""
+    """Method taken from the reference rigs (troll, golem, chest):
+    - every face is framed: a 1-px darker outline, with the top edge of side faces lit (rim light);
+    - broad light: lit top band, base, shadow on the lower third (no per-pixel noise);
+    - material motifs are coherent shapes in model units: panel (bevelled inset), trim (bright rims),
+      plates/ridges (seam + catch-light bands), grain (big low-contrast patches, never isolated dots).
+    n = pixels per model unit."""
     x0, y0, w, h = [v * n for v in rect]
     pat = mat.get("pattern", "smooth")
     base = LIGHT[face]
+    side = face not in ("up", "down")
     for j in range(h):
         for i in range(w):
             s = base
-            if face not in ("up", "down"):
-                fy = j / max(1, h - 1)
-                if j == 0:
-                    s = min(3, base + 1)                 # rim light on the top edge
-                elif fy > 0.7 and h >= 3:
-                    s = max(0, base - 1)                 # form shadow low on the side
-                if j >= h - max(1, n // 2) and h >= 4 * n:
-                    s = 0                                # contact shadow
-            elif face == "up" and (i in (0, w - 1) or j in (0, h - 1)) and w > 2 and h > 2:
-                s = 3
-            if pat == "plates":
-                if face in ("east", "west", "up"):
-                    px = i if face != "up" else j
-                    along, sub = px // n, px % n
-                    if along % 4 == 3 and sub >= n // 2:
-                        s = max(0, s - 1)                # plate seam
-                    elif along % 4 == 0 and along > 0 and sub < max(1, n // 2):
-                        s = min(3, s + 1)                # ridge catch-light after the seam
-            elif pat == "scales" and (i // n + 2 * (j // n // 2)) % 4 == 0 and (j // n) % 2 == 0:
-                s = max(0, s - 1)
-            # sparse 2-px clusters instead of single-pixel noise
-            r = hsh(seed, x0 + i, y0 + j)
-            if 0 < i < w - 1 and 0 < j < h - 1 and r < 0.07:
-                s = max(0, min(3, s + (1 if r < 0.025 else -1)))
-                img.set(x0 + i, y0 + j, rmp[s])
-                if i + 1 < w - 1:
-                    img.set(x0 + i + 1, y0 + j, rmp[s])
-                continue
-            img.set(x0 + i, y0 + j, rmp[s])
+            u, v = i // n, j // n
+            wu, hu = w // n, h // n
+            if side:
+                if j < max(1, n // 2):
+                    s = base + 1                       # rim light
+                elif j >= h * 0.66:
+                    s = base - 1                       # shadow on the lower third
+            if pat == "panel" and wu >= 4 and hu >= 4:
+                if (u == 1 and 1 <= v <= hu - 2) or (v == 1 and 1 <= u <= wu - 2):
+                    s -= 1                             # groove (top/left of the inset)
+                elif (u == wu - 2 and 1 <= v <= hu - 2) or (v == hu - 2 and 1 <= u <= wu - 2):
+                    s += 1                             # bevel catch-light (bottom/right)
+            elif pat == "trim":
+                if v == 0 or v == hu - 1:
+                    s += 1
+                elif v == 1 or v == hu - 2:
+                    s -= 1
+            elif pat == "plates":
+                along = v if hu >= wu else u           # ridges across the long axis (horns, tails)
+                if along % 2 == 0 and along > 0:
+                    s -= 1
+                elif along % 2 == 1:
+                    s += 0
+            elif pat == "grain" and 0 < i < w - 1 and 0 < j < h - 1:
+                if hsh(seed, (x0 + i) // n, (y0 + j) // n) < 0.1 and s == base:
+                    s -= 1                             # sparse 1-unit cells, only on the flat base area
+            # frame: 1-px outline (keeps the lit top edge on side faces)
+            if w > 2 and h > 2 and (i in (0, w - 1) or j == h - 1 or (j == 0 and not side)):
+                s = min(s, base - 1)
+            img.set(x0 + i, y0 + j, rmp[max(0, min(4, s))])
 
 
 def build(spec: dict, root: Path):
     tw, th = spec.get("texture", [64, 64])
     n = int(spec.get("density", 1))
     mats = spec["materials"]
-    ramps = {k: ramp(v["color"]) for k, v in mats.items()}
+    ramps = {k: ramp(v["color"], 5) for k, v in mats.items()}
     cubes = [dict(c, bone=b["name"], idx=i) for b in spec["bones"] for i, c in enumerate(b.get("cubes", []))]
+    # Box UV needs whole-number sizes: a 2.5-wide face gets a 3-px UV strip, so Blockbench/GeckoLib show seams
+    # and see-through slivers. Round each size (min 1) and keep the cube centred where it was.
+    for c in cubes:
+        size = [max(1, round(v)) for v in c["size"]]
+        if size != list(c["size"]):
+            c["origin"] = [c["origin"][k] + (c["size"][k] - size[k]) / 2 for k in range(3)]
+            c["size"] = size
     while True:  # grow the atlas (height, then width) until every box-UV footprint fits
         try:
             used = pack(cubes, tw, th)
@@ -162,7 +176,13 @@ def build(spec: dict, root: Path):
     glow_used = False
     for c in cubes:
         rect = faces_of(*c["uv"], c["size"])
+        group = spec.get("paint_group")
         for f, r in rect.items():
+            if group and c["mat"] not in group:   # texture group by group: the rest stays neutral grey
+                for j in range(r[3] * n):
+                    for i in range(r[2] * n):
+                        img.set(r[0] * n + i, r[1] * n + j, (128, 128, 128, 255))
+                continue
             paint_face(img, r, f, mats[c["mat"]], ramps[c["mat"]], sum(map(ord, c["bone"])) % 997 + c["idx"], n)
             if mats[c["mat"]].get("emissive"):
                 glow_used = True
@@ -173,7 +193,7 @@ def build(spec: dict, root: Path):
     for c in cubes:
         by_bone.setdefault(c["bone"], c)
     for d in spec.get("details", []):
-        c = by_bone[d["bone"]]
+        c = next(x for x in cubes if x["bone"] == d["bone"] and x["idx"] == d.get("cube", 0))
         fx, fy, fw, fh = faces_of(*c["uv"], c["size"])[d["face"]]
         rm = ramps[d.get("mat", c["mat"])]
         for px in d["px"]:
@@ -501,11 +521,14 @@ def main():
     ap.add_argument("spec"); ap.add_argument("--out", required=True)
     ap.add_argument("--pose", action="append", default=[], help="anim@time, e.g. walk@0.25 (writes posed geo files)")
     ap.add_argument("--pose-dir")
+    ap.add_argument("--group", help="texture only these materials (comma list); others stay flat grey for review")
     ap.add_argument("--density", type=int, help="pixels per model unit (1 = vanilla look; 2-4 = room for real shading/AO)")
     a = ap.parse_args()
     spec = json.loads(Path(a.spec).read_text(encoding="utf-8"))
     if a.density:
         spec["density"] = a.density
+    if a.group:
+        spec["paint_group"] = a.group.split(",")
     out = Path(a.out)
     geo, img, glow, used = build(spec, out)
     anim, left = fix_collisions(spec, geo)

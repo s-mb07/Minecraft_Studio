@@ -67,6 +67,21 @@ add a suffix instead (`_v2`, `_d4_ao`).
    - The ≤ 5 shades-per-ramp rule applies to density-1 pixel art (AO adds gradients by design).
 9. **Ship:** mc-geckolib (Java + `gradle_run.py build/gametest/server`).
 
+## Texture rules learned from the user's review of the first photo test
+- **Group by group:** `entity_gen.py --group skin,skin_dark,fur,eye` textures only those materials; the rest
+  stays flat grey. The user validates each group before the next one: 1 skin/face, 2 horns, 3 metal (gold/teal),
+  4 leather/cloth, then AO.
+- **No random dots** (they look amateur). Each face gets a 1-px darker outline, a lit top edge and a broad
+  shadow on its lower third. Motifs are coherent shapes: `panel` (bevelled inset), `trim` (bright rims),
+  `plates` (ridges across the long axis), `grain` (sparse 1-unit cells on flat areas only, very low contrast).
+- **Whole-number cube sizes** with box UV. Fractional sizes produce seams and see-through slivers.
+  `entity_gen.py` rounds them automatically and keeps each cube centred.
+- **Expression comes from shapes, not pixels:** angry brows are two ridges sloping down towards the nose (V).
+  Eyes are 2 units wide right under the brows, with a dark socket line below.
+- **Check the model against the reference before texturing:** horn direction (front/back loops), parts that
+  overlap (long horns vs ram horns), left/right mirroring.
+- **Render once per validation step,** not after every small change.
+
 ## Plugins (use them, the user relies on them)
 | Plugin | Use |
 |---|---|

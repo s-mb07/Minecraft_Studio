@@ -35,7 +35,7 @@ Scripts: `${CLAUDE_PLUGIN_ROOT}/scripts/` (or `../../scripts/` from this file).
    It pins exact versions + hashes, pulls required dependencies, and prints unresolved entries. Fix every
    unresolved one (replace the mod or change the plan with the user). Gate = 0 unresolved.
 6. **Present the list** to the user as a table: role · mod · why · side (client/server/both) · licence.
-   Mark anything with a beta/alpha version. Ask for validation. Log the choice in `studio/decisions.md`.
+   Mark anything with a beta/alpha version. Log the choice in `studio/decisions.md` and continue (the user can change the list any time).
 
 ## Rules
 - Prefer Modrinth. CurseForge-only mods need a CurseForge API key and can't go in a .mrpack by URL: list them

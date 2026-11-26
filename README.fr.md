@@ -7,11 +7,11 @@
 Installe ce plugin dans Claude Code et dis-lui *« fais-moi un modpack dark fantasy en 1.21.1 »*. Claude travaille
 comme un lead developer. Il pose les questions qui manquent, choisit des mods **existants** qui sortent vraiment
 pour ta version, vérifie les dépendances, écrit les quêtes et les scripts d'équilibrage, teste que le pack démarre
-et exporte un `.mrpack`. Chaque étape attend ta validation, et rien n'est considéré comme « fini » sans une preuve
-fournie par un outil.
+et exporte un `.mrpack`. Il travaille seul et ne s'arrête que pour les actions à risque, et rien n'est considéré
+comme « fini » sans une preuve fournie par un outil.
 
-> La v0.1 couvre les **modpacks faits avec des mods existants**. La création de mods Java viendra plus tard
-> (en attendant, `/mc-setup` peut installer des skills de modding externes).
+> v0.1 : **modpacks** faits avec des mods existants. v0.2 : **tes propres mods** (Fabric / NeoForge 1.21.1, modèles
+> Blockbench) et **l'étude de mods existants** (décompilation, explication, réutilisation avec provenance).
 
 ## Installation
 Dans Claude Code :
@@ -29,20 +29,42 @@ pour les tests côté client.
 | `/mc-setup` | installe des skills / serveurs MCP tiers vérifiés (en demandant d'abord) |
 | `/mc-audit` | lance toutes les vérifications et donne un score de santé |
 | `/mc-release 1.0.0` | construit le `.mrpack` (+ server pack), les crédits et le changelog |
+| `/mc-mod [idée]` | crée ou complète un mod de A à Z (scaffold → code → assets → build → tests) |
 
 Tu peux aussi simplement parler : *« ajoute 20 quêtes pour le chapitre Create »*, *« mon pack crashe, voici le log »*.
 
-## Fonctionnement : 8 étapes, chacune avec sa validation
+## Fonctionnement : 8 étapes, chacune vérifiée automatiquement
 1. Brief et direction artistique, 2. sélection des mods (Modrinth), 3. audit des dépendances, 4. quêtes (FTB Quests
 ou advancements vanilla), 5. équilibrage (KubeJS / datapacks / configs), 6. resource pack et shaders, 7. boucle de
 test et de correction, 8. export.
 
 Les principes :
-- **Plan → validation → action.** Claude propose le plan de chaque étape et attend ton accord.
+- **Autonome par défaut.** Le mode Rapide va jusqu'au bout. Le mode Équilibré montre un plan court d'abord, et le mode Guidé pose une seule fois les questions de design importantes.
 - **PASS / LOOK / FAIL.** Ce qui n'a pas été mesuré est LOOK (« non vérifié »), jamais PASS.
-- **Corrections bornées.** 5 tentatives maximum par problème, et la boucle s'arrête si le même crash revient.
+- **Corrections bornées.** 3 tentatives (ou 10 min) maximum par problème, et la boucle s'arrête si le même crash revient.
 - **Mémoire sur disque.** Le dossier `studio/` garde les faits vérifiés, les décisions, les validations et les tests.
 - **Respect du travail des autres.** On ne modifie pas les mods tiers, et on ne redistribue rien sans licence.
+
+## Créer des mods (v0.2)
+Dis *« fais-moi un mod NeoForge 1.21.1 avec un bloc de cristal et une épée en obsidienne »* ou lance `/mc-mod <idée>`.
+Claude part du **template officiel** (Fabric ou NeoForge MDK), écrit le code Java, génère les textures et modélise
+dans **Blockbench via MCP**. Il compile ensuite, lance les GameTests et un serveur de dev, corrige seul les erreurs
+et te rend le `.jar`.
+
+Il faut Java 21 et Java 25 (le plugin Gradle actuel de Fabric, Loom, a besoin de Java 25 pour tourner). Blockbench
+et son plugin MCP sont optionnels. Fabric et NeoForge 1.21.1 sont validés de bout en bout (voir `examples/`).
+
+### Étudier un mod existant
+Dis *« comment marche le câble d'énergie de ce mod ? »* avec un jar, un dépôt GitHub ou un lien Modrinth, ou
+*« copie ce modèle et change ses couleurs »*. Le skill `mc-mod-study` importe le mod dans `studio/references/<id>/`,
+le décompile (Vineflower) et l'indexe. Il trace ensuite seulement les classes utiles et étudie les modèles, les
+textures, les GUI et les shaders. Puis il crée une version originale ou, si tu le demandes, copie et adapte les
+fichiers voulus. La licence s'affiche en une ligne et ne bloque jamais rien. Chaque fichier réutilisé est noté dans
+`studio/reuse-log.jsonl`.
+
+**Autonomie.** Claude fait sans demander tout ce qui est local et réversible. Il ne demande confirmation que pour
+publier, supprimer quelque chose d'irrécupérable, utiliser un secret, installer un logiciel sur le système ou
+accepter l'EULA Minecraft (une seule fois par projet).
 
 ## Plateformes
 La v0.1 automatise **Modrinth**. Les mods FTB (FTB Quests…) ne sont publiés que sur CurseForge : voir

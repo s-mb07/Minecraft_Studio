@@ -1,6 +1,6 @@
 {
   "_comment": "Vetted third-party skills/MCP servers that Minecraft Studio can install via /mc-setup. Each entry was checked on GitHub (exists, licence, recent activity). We only LINK to these projects; nothing is copied. Re-check with: python scripts/registry_check.py (from the plugin root)",
-  "checked_on": "2026-11-25",
+  "checked_on": "2026-11-26",
   "entries": [
     {
       "id": "ftb-quests",
@@ -94,12 +94,12 @@
       "recommended": true
     },
     {
-      "id": "blockbench-mcp",
+      "id": "blockbench-mcp-alt",
       "repo": "RenasDemirbas/BlockBenchMCP",
       "license": "GPL-3.0",
       "kind": "mcp",
       "stage": "assets",
-      "purpose": "Model, texture, animate and export Blockbench models from Claude. GPL-3.0: fine to use, don't copy its code into this MIT repo.",
+      "purpose": "Alternative Blockbench MCP (GPL-3.0). Prefer blockbench-mcp below.",
       "install": "See https://github.com/RenasDemirbas/BlockBenchMCP#readme (Blockbench plugin + MCP server).",
       "manual": true,
       "recommended": false
@@ -114,13 +114,83 @@
       "install": "Download a release from https://github.com/Y-RyuZU/MinecraftModsLocalizer/releases",
       "manual": true,
       "recommended": false
+    },
+    {
+      "id": "blockbench-mcp",
+      "repo": "jasonjgardner/blockbench-mcp-plugin",
+      "license": "GPL-3.0",
+      "kind": "mcp",
+      "stage": "mod-dev,assets",
+      "purpose": "Most used Blockbench MCP: desktop plugin serving MCP over HTTP (model, texture, export, screenshot, GeckoLib) + headless .bbmodel server. Used by the mc-blockbench skill.",
+      "install": "1) Blockbench desktop: File > Plugins > Load Plugin from URL > https://jasonjgardner.github.io/blockbench-mcp-plugin/mcp.js  2) claude mcp add --transport http blockbench http://localhost:3000/bb-mcp --scope user  (Blockbench must be open when used)",
+      "manual": true,
+      "recommended": true
+    },
+    {
+      "id": "jdk-25",
+      "repo": "adoptium/temurin-build",
+      "license": "GPL-2.0-with-classpath-exception",
+      "kind": "app",
+      "stage": "mod-dev",
+      "purpose": "Java 25: needed to RUN Gradle for current Fabric Loom (1.19+) and for MC 26.x mods. Java 21 is still the target for 1.21.1 mods.",
+      "install": "https://adoptium.net/temurin/releases/?version=25 (or the Adoptium API zip into a folder, then set JAVA_HOME). System install: ask the user.",
+      "manual": true,
+      "recommended": true
+    },
+    {
+      "id": "jdk-21",
+      "repo": "adoptium/temurin-build",
+      "license": "GPL-2.0-with-classpath-exception",
+      "kind": "app",
+      "stage": "mod-dev,test",
+      "purpose": "Java 21: runs MC 1.20.5-1.21.x servers and is the compile target of 1.21.1 mods.",
+      "install": "https://adoptium.net/temurin/releases/?version=21",
+      "manual": true,
+      "recommended": true
+    },
+    {
+      "id": "vineflower",
+      "repo": "Vineflower/vineflower",
+      "license": "Apache-2.0",
+      "kind": "app",
+      "stage": "mod-study",
+      "purpose": "Java decompiler used by mod_decompile.py (downloaded automatically from Maven Central to ~/.minecraft-studio/tools/).",
+      "install": "automatic (mod_decompile.py); manual: https://repo1.maven.org/maven2/org/vineflower/vineflower/1.10.1/",
+      "manual": false,
+      "recommended": true
+    },
+    {
+      "id": "cfr",
+      "repo": "leibnitz27/cfr",
+      "license": "MIT",
+      "kind": "app",
+      "stage": "mod-study",
+      "purpose": "Alternative Java decompiler (mod_decompile.py --engine cfr).",
+      "install": "automatic (mod_decompile.py --engine cfr)",
+      "manual": false,
+      "recommended": false
     }
   ],
   "rejected": [
-    { "repo": "Aknirex/minecraft-modpack-builder", "reason": "Archived by its owner (2026-11)." },
-    { "repo": "RBC-X/ai-modpack-builder", "reason": "Repo only ships signed binaries, no licence, no source to review." },
-    { "repo": "Riloox/minecraft-mod-builder", "reason": "No licence. Revisit for v2 (mod creation)." },
-    { "repo": "logan-lopez/claude-modpack", "reason": "No licence, no description." },
-    { "repo": "iTrooz/ModpackResolver", "reason": "Useful web tool, not an agent skill. Linked in docs only." }
+    {
+      "repo": "Aknirex/minecraft-modpack-builder",
+      "reason": "Archived by its owner (2026-11)."
+    },
+    {
+      "repo": "RBC-X/ai-modpack-builder",
+      "reason": "Repo only ships signed binaries, no licence, no source to review."
+    },
+    {
+      "repo": "Riloox/minecraft-mod-builder",
+      "reason": "No licence. Revisit for v2 (mod creation)."
+    },
+    {
+      "repo": "logan-lopez/claude-modpack",
+      "reason": "No licence, no description."
+    },
+    {
+      "repo": "iTrooz/ModpackResolver",
+      "reason": "Useful web tool, not an agent skill. Linked in docs only."
+    }
   ]
 }

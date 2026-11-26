@@ -8,3 +8,11 @@ dist/
 Thumbs.db
 .claude/settings.local.json
 .env
+# mod projects (examples and users' mods)
+build/
+.gradle/
+run/
+runs/
+studio/logs/
+studio/references/
+.studio-backup/

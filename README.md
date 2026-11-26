@@ -6,11 +6,11 @@
 
 Give this plugin to Claude Code and say *"make me a dark-fantasy modpack for 1.21.1"*. Claude works like a
 lead developer: it asks the missing questions, picks **existing** mods that really exist for your version, checks
-dependencies, writes quests and balancing scripts, tests that the pack boots, and exports a `.mrpack`. Every
-step waits for your approval, and nothing counts as "done" without proof from a tool.
+dependencies, writes quests and balancing scripts, tests that the pack boots, and exports a `.mrpack`. It runs on its
+own and only stops for risky actions, and nothing counts as "done" without proof from a tool.
 
-> v0.1 covers **modpacks built from existing mods**. Writing your own Java mods comes later
-> (meanwhile `/mc-setup` can install third-party modding skills).
+> v0.1: **modpacks** built from existing mods. v0.2: **your own mods** (Fabric / NeoForge 1.21.1, Blockbench models)
+> and **studying existing mods** (decompile, explain, reuse with provenance).
 
 ## Install
 
@@ -32,6 +32,7 @@ No plugin system? Copy `plugins/minecraft-studio/` somewhere and point Claude at
 | `/mc-setup` | installs vetted third-party skills / MCP servers (asks first) |
 | `/mc-audit` | runs every static check and gives a health score |
 | `/mc-release 1.0.0` | builds the `.mrpack` (+ server pack), credits, changelog |
+| `/mc-mod [idea]` | creates or extends a mod end to end (scaffold → code → assets → build → tests) |
 
 Or just talk: *"add 20 quests for the Create chapter"*, *"my pack crashes on launch, here's the log"*.
 
@@ -53,9 +54,9 @@ flowchart LR
 | Export | `mc-export` | `.mrpack` built, health score with nothing unmeasured |
 
 The principles:
-- **Plan, approve, then do.** Claude writes the stage plan and waits for you.
+- **Autonomous by default.** Fast mode runs end to end. Balanced shows a short plan first, Guided asks the key design questions once.
 - **PASS / LOOK / FAIL.** Anything that wasn't measured is LOOK ("unverified"), never PASS.
-- **Bounded fixing.** At most 5 fix attempts per problem, and the loop stops if the same crash comes back.
+- **Bounded fixing.** At most 3 fix attempts (or 10 min) per problem, and the loop stops if the same crash comes back.
 - **Memory on disk.** `studio/` holds verified facts, decisions, gates and test logs, so any session can resume cheaply.
 - **Respect other people's work.** No editing of third-party mods. Behaviour changes go through configs, KubeJS
   or datapacks. Mods are referenced by URL and never redistributed without a licence.
@@ -86,6 +87,51 @@ my-pack/
   dist/     build output
 ```
 
+## Making mods (v0.2)
+Say *"make a NeoForge 1.21.1 mod with a crystal block and an obsidian sword"* or run `/mc-mod <idea>`.
+Claude scaffolds the mod from the **official template** (Fabric example mod / NeoForge MDK), writes the Java code,
+generates textures, models blocks in **Blockbench through MCP**, then builds and runs GameTests and a dev server.
+It repairs failures on its own and hands you the jar.
+
+| Skill | Role |
+|---|---|
+| `mc-mod-dev` | orchestrator, Fast / Balanced / Guided modes |
+| `mc-mod-scaffold` | official template → your modid/package (`mod_new.py`) |
+| `mc-mod-content` | items, blocks, tools, armor, entities, tabs, networking, configs, mixins (patterns) |
+| `mc-mod-datagen` | data generators instead of hand-written JSON |
+| `mc-blockbench` | Blockbench MCP pipeline: model → export → check → hitbox |
+| `mc-mod-textures` | pixel-art drafts (`texture.py`) and rules |
+| `mc-mod-build-test` | `mod_check.py` → Gradle build → GameTests → dev server, bounded auto-repair |
+| `mc-mod-release` | jar inspection, changelog, Modrinth publish (dry run unless confirmed) |
+| `mc-geckolib` | optional animated entities/items |
+| `mc-mod-study` | study a reference mod (decompile, trace, assets, GUI) and reuse on request, with provenance |
+
+Extra scripts: `mod_new.py`, `mod_check.py` (ids ↔ models ↔ textures ↔ lang ↔ recipes, `--fix`), `gradle_run.py`,
+`texture.py`, `bbmodel_check.py`, `jar_inspect.py` (also gives real item ids of any mod for quests/KubeJS),
+`modrinth_publish.py`.
+
+Requirements for mods: **JDK 21 and JDK 25** (current Fabric Loom needs Java 25 to run Gradle; mods still target Java 21).
+Blockbench + the [Blockbench MCP plugin](https://github.com/jasonjgardner/blockbench-mcp-plugin) are optional.
+
+Validated end to end: **Fabric 1.21.1** and **NeoForge 1.21.1** ([examples/](examples/)). Forge 1.20.1, 26.x and
+multiloader are documented but not validated yet.
+
+### Studying an existing mod
+Say *"how does this mod's energy cable work?"* with a jar, a GitHub repo or a Modrinth link, or *"copy this model
+and recolour it"*. The `mc-mod-study` skill imports the mod into `studio/references/<id>/`, decompiles it
+(Vineflower) and indexes it. It then traces only the classes that matter and studies models, textures, GUIs and
+shaders. After that it builds an original version or, when you ask, copies and adapts the files you name.
+It shows the licence in one line and never blocks on it. Every reused file is logged in `studio/reuse-log.jsonl`.
+
+Scripts: `mod_reference.py` (add/list/remove), `mod_decompile.py`, `mod_inventory.py`, `license_scan.py`,
+`mechanic_trace.py`, `asset_study.py`, `gui_study.py`, `reuse_apply.py`, `similarity_report.py`.
+Production Fabric jars use intermediary names for Minecraft classes (common ones are mapped back). NeoForge
+jars use Mojang names.
+
+**Autonomy.** Claude does all local, reversible work without asking: files, code, builds, fixes, tests. It only stops
+to confirm publishing, deleting irrecoverable work, secrets, system installs, or the Minecraft EULA (asked once per
+project).
+
 ## Third-party tools
 `/mc-setup` can install these. Each one was checked (it exists, its licence, recent activity) and is listed in
 [`third-party/registry.json`](plugins/minecraft-studio/third-party/registry.json). We link to them and don't
@@ -103,8 +149,9 @@ v0.1 automates **Modrinth** (`.mrpack`). Some mods, notably the FTB mods, are Cu
 [docs/platforms.md](plugins/minecraft-studio/docs/platforms.md) for what that means and the manual CurseForge route.
 
 ## Roadmap
-- v0.2: CurseForge API (`curseforge.py`, CurseForge manifest export), Prism instance automation via MCP
-- v0.3: mod creation (Fabric / NeoForge / multiloader), Blockbench pipeline, datapack quest generator
+- ~~v0.2: mod creation (Fabric / NeoForge), Blockbench pipeline~~ done
+- v0.3: CurseForge API (`curseforge.py`, CurseForge manifest export), validated datagen examples, multiloader,
+  Forge 1.20.1 and 26.x validation, datapack quest generator
 - later: maybe a desktop app on top of the same methods
 
 ## Contributing

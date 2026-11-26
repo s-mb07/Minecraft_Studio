@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "id": "msexample",
+  "version": "${version}",
+  "name": "MS Example",
+  "description": "MS Example, made with Minecraft Studio.",
+  "authors": [
+    "Minecraft Studio"
+  ],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/msexample/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "io.github.minecraftstudio.msexample.Msexample"
+    ],
+    "client": [
+      "io.github.minecraftstudio.msexample.client.MsexampleClient"
+    ],
+    "fabric-gametest": [
+      "io.github.minecraftstudio.msexample.ModGameTests"
+    ]
+  },
+  "mixins": [
+    "msexample.mixins.json",
+    {
+      "config": "msexample.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=0.20.1",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

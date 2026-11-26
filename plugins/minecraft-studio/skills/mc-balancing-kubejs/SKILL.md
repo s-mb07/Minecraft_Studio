@@ -24,7 +24,7 @@ Look for:
 - **Bottlenecks**: one rare resource gating too much, or a grind > 30 min with no automation option.
 - **Cross-mod exploits**: duplication loops, free energy, item-to-item conversion that creates value.
 - **Quest rewards** that skip what the next quest teaches.
-Present the table, get approval on what to change. Balance is a design choice: the user decides.
+Apply clear fixes (exploits, duplicates, obvious shortcuts) directly. Taste calls (making the pack harder/easier) follow the brief; if the brief is silent, list them in the summary as suggestions.
 
 **KubeJS availability depends on the loader** (checked on Modrinth, 2026-11): on 1.21.1 it's **NeoForge only**;
 on 1.20.1 it exists for Forge, Fabric and Quilt. Always run `modrinth.py info kubejs --mc <v> --loader <l>`
@@ -70,4 +70,4 @@ python <scripts>/validate.py pack/overrides
 ```
 Syntax only. Item IDs and recipe types are checked when the game loads: KubeJS errors show in
 `logs/kubejs/server.log` and are triaged by `log_scan.py` (stage 7). Gate: validate no FAIL + server boots with no
-KubeJS error + the user approved the balancing table.
+KubeJS error; the balancing table is in `studio/balancing.md`.

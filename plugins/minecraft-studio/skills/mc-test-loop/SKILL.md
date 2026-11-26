@@ -16,7 +16,8 @@ Scripts: `${CLAUDE_PLUGIN_ROOT}/scripts/` (or `../../scripts/`).
    ```
    python <scripts>/server_test.py <workspace> --accept-eula
    ```
-   Ask the user first: "This accepts the Minecraft EULA (https://aka.ms/MinecraftEULA) for a local test server — OK?"
+   EULA: ask once per workspace ("The test server needs the Minecraft EULA (https://aka.ms/MinecraftEULA) — accept?"),
+   record `EULA accepted | yes | date` in `studio/dossier.md`, never ask again for this workspace.
    Needs Java (version in the dossier). Writes `studio/test-status.json` → `server_boot`.
 3. **Client boot to title screen + world load**:
    - with **prismlauncher-mcp** installed (`/mc-setup`): create/update an instance from the .mrpack, launch, wait,
@@ -26,17 +27,17 @@ Scripts: `${CLAUDE_PLUGIN_ROOT}/scripts/` (or `../../scripts/`).
    Record `client_boot: true/false` in `studio/test-status.json`.
 4. **Quest walkthrough** (first chapter at least): user or bot plays it; record `quest_walkthrough`.
 
-## The loop (max 5 attempts per problem)
+## The loop (max 3 attempts or 10 min per problem, automatic)
 ```
 python <scripts>/log_scan.py <instance-or-server-dir> --history <workspace>/studio/fix-history.json
 ```
 1. Read the scan: rule, line, suspects, suggested fix. Quote only the relevant log lines to the user.
 2. Propose ONE fix (smallest change): update/pin a version, add a dependency, remove a mod, fix a config or a KubeJS
-   line. Explain why in one sentence. Apply after the user OKs it (or directly if they said "fix it yourself").
+   line. Apply it directly and note why in one line in `studio/test-log.md`. (Removing a mod the user explicitly asked for = ask first.)
 3. Change the source of truth (`mods.txt` → re-`resolve`, overrides, design.json), never the test copy.
 4. Retest the same way. Log the attempt in `studio/test-log.md` (# · side · result · signature · suspect · fix).
 5. **Stop** when: it passes; OR `log_scan` exits with code 3 / prints STOP (same signature as a previous attempt);
-   OR 5 attempts. On stop, summarise what was tried and ask the user how to proceed.
+   OR 3 attempts. On stop, summarise what was tried and ask one precise question.
 
 ## Diagnosis tips
 - No pattern matched → read the last 60 lines of `latest.log` and the `Caused by:` chain of the crash report.

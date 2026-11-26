@@ -45,7 +45,7 @@ quest tone consistent with these words. Draft the `studio/style-guide.md` voice 
 ## 4. Output
 - Write `studio/brief.md`; verified facts (version, loader, Java) also go into `studio/dossier.md`.
 - Add one line to `studio/decisions.md`.
-- Show the user a 5-line summary and ask them to validate before stage 2.
+- Show a 5-line summary and continue to stage 2 (Fast mode). In Guided mode, wait for the user's OK.
 
 ## Good brief example
 ```

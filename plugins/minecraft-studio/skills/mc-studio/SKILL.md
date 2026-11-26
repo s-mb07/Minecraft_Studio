@@ -17,9 +17,23 @@ All helper scripts are in the plugin's `scripts/` folder: `${CLAUDE_PLUGIN_ROOT}
 expanded, the folder is two levels above this SKILL.md: `../../scripts/`). Python 3.9+, standard library only.
 Call them as `python <scripts>/modrinth.py ...`. Run any script with `-h` for its options.
 
+## Autonomy policy
+- **Fast mode (default):** run the stages end to end yourself — selecting, resolving, writing files, generating quests,
+  fixing, testing, building. Don't ask permission for routine steps. Report at the end.
+- **Balanced:** show a 5-line plan first, then run without further prompts. **Guided:** ask the key design questions once
+  (theme, mods, quest style), then run. The user can switch mode any time.
+- **FAIL = fix and rerun** automatically (max 3 attempts or 10 min per check). **LOOK = continue**, list it in the summary.
+- **Ask one short question only for:** publishing (Modrinth, git push, release), deleting/overwriting work that can't be
+  recovered, secrets, installs/settings outside the workspace, the EULA (once per workspace, stored in the dossier),
+  or a genuinely ambiguous request (batch all questions in one round).
+- Before overwriting a user-made file, back it up to `.studio-backup/<date>/`.
+
+Making a **mod** (Java) instead of a pack → use the `mc-mod-dev` skill. Studying or reusing parts of an existing
+mod → `mc-mod-study` (its *Reference analysis and reuse policy* applies everywhere: analysis is automatic, reuse is
+on request, provenance is logged, and an unknown licence never blocks).
+
 ## The 8 stages
-Each stage: **plan → user approves → do → gate → user validates → next**. Never skip the approval, never start
-the next stage on your own. Write the stage plan in `studio/plan.md` (template) before touching files.
+Run in order; each ends with an automatic check. Pauses only per the policy above.
 
 | # | Stage | Skill | Gate (evidence) |
 |---|---|---|---|
@@ -33,7 +47,7 @@ the next stage on your own. Write the stage plan in `studio/plan.md` (template) 
 | 8 | Export | mc-export | `.mrpack` built, `health.py` with nothing unmeasured |
 
 Stages 4-6 are optional depending on the brief. Small requests ("add 3 quests", "why does it crash") jump
-straight to the right stage, but still plan → approve → gate.
+straight to the right stage.
 
 ## Start of a session
 1. If no workspace exists: ask the missing brief questions (mc-brief), then run
@@ -52,9 +66,9 @@ straight to the right stage, but still plan → approve → gate.
   yours or allowed (see `assets/licences.md`).
 - **Unique namespace.** Pick one lowercase namespace for the pack (e.g. `darkhollow`) and use it for every
   datapack, KubeJS id and resource-pack path.
-- **Bounded fixing.** Test → diagnose → fix at most 5 times per problem; stop and ask the user if the same failure
-  signature repeats (`log_scan.py --history`).
-- **Log decisions.** One line in `studio/decisions.md` per choice that the user approved or that changes the pack.
+- **Bounded fixing.** Test → diagnose → fix at most 3 times (or 10 min) per problem; if the same failure signature
+  repeats (`log_scan.py --history`), change approach; still stuck → one precise question to the user.
+- **Log decisions.** One line in `studio/decisions.md` per choice that changes the pack.
 - **After each step**: list the files created/changed and how to test them, in a few lines.
 
 ## Token economy

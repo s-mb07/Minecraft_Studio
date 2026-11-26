@@ -1,0 +1,32 @@
+name: example-mods
+
+on:
+  push:
+    paths: ["examples/**", "plugins/minecraft-studio/templates/mod/**", ".github/workflows/mods.yml"]
+  pull_request:
+    paths: ["examples/**", "plugins/minecraft-studio/templates/mod/**"]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        example: [ms-example-fabric-1.21.1, ms-example-neoforge-1.21.1]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            21
+            25
+      - uses: gradle/actions/setup-gradle@v4
+      - name: mod_check
+        run: python3 plugins/minecraft-studio/scripts/mod_check.py examples/${{ matrix.example }}
+      - name: build
+        working-directory: examples/${{ matrix.example }}
+        run: chmod +x gradlew && ./gradlew build --console=plain
+      - name: gametest
+        working-directory: examples/${{ matrix.example }}
+        run: ./gradlew ${{ contains(matrix.example, 'fabric') && 'runGametest' || 'runGameTestServer' }} --console=plain

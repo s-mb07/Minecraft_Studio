@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "msexample:block/crystal_block"
+    }
+  }
+}

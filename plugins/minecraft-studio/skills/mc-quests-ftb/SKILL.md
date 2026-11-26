@@ -17,7 +17,7 @@ progress as long as keys don't change. **Never rename a key in a released pack**
 Schema: see `templates/quest-design.example.json` and `quests.py -h`.
 
 ## 1. Design the progression first (no files yet)
-Give the user a chapter outline for approval:
+Outline the chapters (in Guided mode show the outline first; otherwise just build it):
 - 1 chapter = 1 phase of play (e.g. First night → Tools → Exploration → Boss → Endgame). 5-15 quests each.
 - Every chapter has one entry quest. Every quest has a purpose: teach a mod, gate a resource, or reward a milestone.
 - Use the mod sheets (stage 2) to anchor quests on real items from mods that are in the lock.

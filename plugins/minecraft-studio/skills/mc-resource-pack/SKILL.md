@@ -43,7 +43,7 @@ assets/resourcepack/
 
 ## Art direction
 Follow the design brief palette and mood words. Keep one pixel density. Write a short asset list first
-(file, purpose, size) and get approval. For concepts/icons/banners, the `minecraft-imagegen` skill can help;
+(file, purpose, size), then make them. For concepts/icons/banners, the `minecraft-imagegen` skill can help;
 for 3D models, Blockbench (BlockBenchMCP via `/mc-setup`).
 
 ## Licences (mandatory)

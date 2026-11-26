@@ -49,8 +49,9 @@ def ramp(hexcol: str, n: int = 4) -> list[tuple]:
         t = (k - base_i)
         # shadows: cool materials drift to blue/purple, warm ones (skin, ivory, gold, leather) to deep red-brown;
         # violet shadows on warm colours look dirty/pink
+        # never purple: cool materials keep their own hue in the shadows, warm ones drift slightly to red-brown
         warm = h < 0.17 or h > 0.92
-        target = (0.02 if warm else 0.70) if t < 0 else 0.13
+        target = (0.02 if warm else h) if t < 0 else 0.13
         hh = h + ((target - h + 0.5) % 1 - 0.5) * min(0.25, 0.08 * abs(t))
         ss = min(1, s * (1 + 0.12 * abs(t))) if t < 0 else s * (1 - 0.08 * t)
         rr, gg, bb = colorsys.hls_to_rgb(hh % 1, max(0.02, min(0.96, l + dl)), max(0, min(1, ss)))
@@ -107,7 +108,7 @@ def pack(cubes, tw, th):
 LIGHT = {"up": 3, "north": 2, "east": 2, "west": 2, "south": 1, "down": 1}
 
 
-def paint_face(img, rect, face, mat, rmp, seed, n=1):
+def paint_face(img, rect, face, mat, rmp, seed, n=1, lit=False):
     """Method taken from the reference rigs (troll, golem, chest):
     - every face is framed: a 1-px darker outline, with the top edge of side faces lit (rim light);
     - broad light: lit top band, base, shadow on the lower third (no per-pixel noise);
@@ -116,8 +117,10 @@ def paint_face(img, rect, face, mat, rmp, seed, n=1):
     n = pixels per model unit."""
     x0, y0, w, h = [v * n for v in rect]
     pat = mat.get("pattern", "smooth")
-    base = LIGHT[face]
-    side = face not in ("up", "down")
+    # Animated entities are UNLIT: the game lights the model, and light painted into the texture (bright tops,
+    # dark bottoms, AO) turns wrong as soon as a limb rotates. Only static props (blocks, items) use lit=True.
+    base = LIGHT[face] if lit else 2
+    side = face not in ("up", "down") and lit
     for j in range(h):
         for i in range(w):
             s = base
@@ -184,7 +187,8 @@ def build(spec: dict, root: Path):
                     for i in range(r[2] * n):
                         img.set(r[0] * n + i, r[1] * n + j, (128, 128, 128, 255))
                 continue
-            paint_face(img, r, f, mats[c["mat"]], ramps[c["mat"]], sum(map(ord, c["bone"])) % 997 + c["idx"], n)
+            paint_face(img, r, f, mats[c["mat"]], ramps[c["mat"]], sum(map(ord, c["bone"])) % 997 + c["idx"], n,
+                       lit=spec.get("lighting") == "lit")
             if mats[c["mat"]].get("emissive"):
                 glow_used = True
                 for j in range(r[3] * n):

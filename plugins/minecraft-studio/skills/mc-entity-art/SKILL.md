@@ -50,7 +50,9 @@ add a suffix instead (`_v2`, `_d4_ao`).
      contact shadow on the bottom rows.
    - Material patterns (plates, scales), sparse 2-px clusters (no single-pixel noise, no pillow shading).
    - Details last (eyes as `emit` → glowmask).
-5. **Ambient occlusion, with the user's plugin (Mr Salmon's Baked AO):** `bb_render.py ... --ao`.
+5. **Ambient occlusion: static props only.** Animated entities stay unlit, with no AO or painted light in the
+   texture, because the game lights them and baked shadows break when parts move. For blocks, items and fixed
+   props, use the user's plugin (Mr Salmon's Baked AO): `bb_render.py ... --ao`.
    - The plugin bakes **one mesh** and GeckoLib projects can't hold meshes. So the script opens a temporary
      Generic project, imports the geo, converts the cubes to meshes, **merges them into one mesh** (parts occlude
      each other) and bakes once (~10-15 s).

@@ -15,6 +15,7 @@ reference rigs. Each line is a yes/no check.
 
 ## 2. Anatomy and proportions
 - Pivots go at the real joints (hip, knee, ankle, shoulder, elbow, wrist, neck base, horn root). Never at the cube centre.
+- Horn roots sit on the skull (top-side of the head), not above it. The user lowered the front horns once.
 - Proportions are measured on the reference in head heights (legs/body/head ratio, arm length to the knee,
   shoulder width) and written in the spec header.
 - Digitigrade legs: the thigh angles forward, the shin back, the hoof flat on the ground. Feet touch y = 0.
@@ -48,19 +49,22 @@ reference rigs. Each line is a yes/no check.
 
 ## 6. Texture logic
 - Texture group by group, with user validation: skin and face → horns/bones → metal → leather/cloth → AO.
-- Every face is framed: a 1-px darker outline, a lit top edge, a shadow on the lower third. Light comes from above.
+- Every face is framed by a 1-px darker outline (material definition, not lighting). No lit tops or dark
+  bottoms on animated models (see 7).
 - Motifs are coherent shapes in model units: bevelled panels (metal, leather), bright trims (gold rims, cloth
   hems), ridges every 3 units (horns), sparse grain (skin). **No random dots.**
-- Ramps: 5 shades per material. Warm materials get warm (red-brown) shadows, cool ones blue/purple. Ivory and
-  gold must never turn pink.
+- Ramps: 5 shades per material, never purple. Ivory and gold must never turn pink.
 - The palette follows 60/30/10: main skin/fur, secondary armour, accent (eyes, gold trim, red tips).
 - Density: 1 px/unit for the vanilla look, 2-4 when shading and AO need room.
 
 ## 7. Shading and ambient occlusion
-- Bake AO **after** all groups are validated, with the Baked AO plugin on ONE merged mesh (`bb_render.py --ao`).
-- AO must darken the contacts (under the head, armpits, between the legs, under armour edges), not wash out the
-  whole texture. Shadow alpha around 0.85, radius around 6.
-- Keep the AO texture as a separate variant (`_ao.png`). The base painted texture stays editable.
+- **Animated entities: no shading in the texture.** The game lights the model. Painted light (bright tops,
+  dark bottoms) and baked AO turn wrong as soon as a limb or the head rotates. `entity_gen` paints entities
+  unlit by default: flat material colour, 1-px outline, material motifs.
+- Baked AO (`bb_render.py --ao`, Baked AO plugin on one merged mesh) and lit painting (`"lighting": "lit"`) are
+  only for **static** things: blocks, items, non-animated props.
+- Shadow colours **never go purple or violet**: cool materials keep their own hue when darker, warm ones drift
+  slightly to red-brown.
 
 ## 8. Animation logic (when we get there)
 - Animate bones, never single cubes. Idle and walk first, then attack, hurt, death.
@@ -68,7 +72,7 @@ reference rigs. Each line is a yes/no check.
 - No interpenetration (collision check). The weight shows in a body bob at 2× the step frequency.
 
 ## 9. Process
-- Model → validate → texture (by group) → validate → AO → validate → animations → validate → game.
+- Model → validate → texture (by group) → validate → animations → validate → game (AO only for static props).
 - **The user's manual fixes in Blockbench are kept:** `bb_sync.py spec.json edited.bbmodel --out spec_vN.json`,
   then regenerate. Learn the rule behind each fix and add it here.
 - The user's fix is the truth. If a synced part now fails its `expect`, the expectation was wrong: update it to

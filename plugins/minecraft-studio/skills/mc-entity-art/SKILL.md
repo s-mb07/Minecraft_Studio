@@ -67,6 +67,22 @@ add a suffix instead (`_v2`, `_d4_ao`).
    - The ≤ 5 shades-per-ramp rule applies to density-1 pixel art (AO adds gradients by design).
 9. **Ship:** mc-geckolib (Java + `gradle_run.py build/gametest/server`).
 
+## Orientation: never guess a rotation sign (measured, enforced)
+Conventions of `.geo.json` (GeckoLib), measured in Blockbench with probe cubes and locked by a test:
+- The entity faces **-Z**. **Geo +X is the character's LEFT** (it shows on the viewer's right in a front view).
+- `+rot Z` **lowers** the outer end of a part pointing to +X. `+rot X` lowers the front end (and raises the back
+  end). `+rot Y` swings a +X part towards the front.
+Guessed signs make both mirrored halves wrong together (sad brows instead of angry, horn tips crossing,
+gear on the wrong arm). So:
+1. Write rotations of symmetric parts with the helpers in `entity_gen`: `raise_outer(side, deg)`,
+   `swing_forward(side, deg)`, `tip_front_down(deg)`, `combine(...)`. Mirror cubes with `mirror_cube`.
+   Name sides `LEFT` / `RIGHT` as the character's sides (`out_x(side)` gives the outward X sign).
+2. Declare the intent on every expressive or symmetric bone: `"expect": {"tip": ["out", "up"]}` (out, in, up,
+   down, front, back, left, right). `entity_gen.py` checks it with the measured kinematics and prints
+   `[FAIL] orientation ...` before any render. Fix those first.
+3. Asymmetric gear follows the reference **from the character's point of view**. In a front view the character's
+   right is on the viewer's left, which is geo -X.
+
 ## Texture rules learned from the user's review of the first photo test
 - **Group by group:** `entity_gen.py --group skin,skin_dark,fur,eye` textures only those materials; the rest
   stays flat grey. The user validates each group before the next one: 1 skin/face, 2 horns, 3 metal (gold/teal),

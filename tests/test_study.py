@@ -269,3 +269,31 @@ class TestEntityArt(unittest.TestCase):
                             "--texture", "x.png", "--out", "y.png", "--url", "http://127.0.0.1:9/none"],
                            capture_output=True, text=True)
         self.assertEqual(r.returncode, 0); self.assertIn("LOOK", r.stdout)
+
+
+class TestOrientation(unittest.TestCase):
+    """Locks the geo/GeckoLib convention measured in Blockbench (probe cubes, 2026-11-26)."""
+
+    def test_measured_convention(self):
+        import entity_gen as e
+        geo = {"minecraft:geometry": [{"bones": [
+            {"name": "rz", "pivot": [2, 0, 0], "rotation": [0, 0, 20], "cubes": [{"origin": [2, 0, 0], "size": [10, 1, 1]}]},
+            {"name": "rx", "pivot": [0, 0, -2], "rotation": [20, 0, 0], "cubes": [{"origin": [-0.5, 0, -12], "size": [1, 1, 10]}]},
+            {"name": "ry", "pivot": [0, 5, 0], "rotation": [0, 20, 0], "cubes": [{"origin": [0, 5, 0], "size": [10, 1, 1]}]}]}]}
+        spec = {"bones": [{"name": "rz", "expect": {"tip": ["down", "out"]}},      # +Z lowers a +X part
+                          {"name": "rx", "expect": {"tip": ["down", "front"]}},    # +X lowers the front
+                          {"name": "ry", "expect": {"tip": ["front", "out"]}}]}    # +Y swings a +X part forward
+        self.assertEqual(e.check_orientation(spec, geo), [])
+
+    def test_helpers_mirror_correctly(self):
+        import entity_gen as e
+        bones = []
+        for side in (e.LEFT, e.RIGHT):
+            o = e.out_x(side)
+            bones.append({"name": f"brow_{side}", "pivot": [0.5 * o, 44, -11], "rotation": e.raise_outer(side, 25),
+                          "cubes": [{"origin": [0.5 if o > 0 else -4.5, 43.5, -12], "size": [4, 1, 2]}]})
+        geo = {"minecraft:geometry": [{"bones": bones}]}
+        spec = {"bones": [{"name": b["name"], "expect": {"tip": ["out", "up"]}} for b in bones]}
+        self.assertEqual(e.check_orientation(spec, geo), [])
+        spec["bones"][0]["expect"] = {"tip": ["down"]}
+        self.assertTrue(e.check_orientation(spec, geo))

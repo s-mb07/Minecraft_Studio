@@ -378,6 +378,97 @@ def animations(spec: dict) -> dict:
     return {"format_version": "1.8.0", "animations": out, "geckolib_format_version": 2}
 
 
+# ---------------------------------------------------------------- orientation: never write raw rotation signs
+# Conventions MEASURED in Blockbench for .geo.json (GeckoLib) - see mc-entity-art "Orientation":
+#   the entity faces -Z (front); geo +X is the CHARACTER'S LEFT (shown on the viewer's right in a front view);
+#   +rot Z lowers the outer end of a part pointing to +X; +rot X lowers the front end (raises the back end);
+#   +rot Y swings a +X part towards the front.
+# Write specs with these helpers and declare intent with "expect"; check_orientation() verifies it.
+LEFT, RIGHT = "left", "right"
+
+
+def out_x(side: str) -> int:
+    """Sign of X pointing outwards on the character's side."""
+    return 1 if side == LEFT else -1
+
+
+def raise_outer(side: str, deg: float) -> list:
+    """Z rotation lifting the outer end of a sideways part (brow outer end up = angry, horn tips up)."""
+    return [0, 0, -deg * out_x(side)]
+
+
+def tip_front_down(deg: float) -> list:
+    """X rotation: positive lowers parts pointing to the front and raises parts pointing back."""
+    return [deg, 0, 0]
+
+
+def swing_forward(side: str, deg: float) -> list:
+    """Y rotation sending the outer end of a sideways part towards the front (negative = towards the back)."""
+    return [0, deg * out_x(side), 0]
+
+
+def combine(*rots) -> list:
+    return [round(sum(r[i] for r in rots), 3) for i in range(3)]
+
+
+def mirror_cube(c: dict) -> dict:
+    """The same cube on the other side (x -> -x). Rotations about Y and Z flip sign, X does not."""
+    o, s = c["origin"], c["size"]
+    m = dict(c, origin=[-(o[0] + s[0]), o[1], o[2]])
+    if c.get("rotation"):
+        r, p = c["rotation"], c.get("pivot", [0, 0, 0])
+        m["rotation"], m["pivot"] = [r[0], -r[1], -r[2]], [-p[0], p[1], p[2]]
+    return m
+
+
+def check_orientation(spec: dict, geo: dict) -> list:
+    """FAIL lines for bones whose declared "expect": {"tip": [...]} (out, in, up, down, front, back, left, right)
+    does not match the rest pose: tip = cube corner farthest from the bone pivot, computed with the measured FK."""
+    want = {b["name"]: b["expect"] for b in spec["bones"] if b.get("expect")}
+    if not want:
+        return []
+    R = {}
+    for bn, ctr, ax, h in boxes(geo):
+        if bn in want:
+            for sx in (-1, 1):
+                for sy in (-1, 1):
+                    for sz in (-1, 1):
+                        R.setdefault(bn, []).append([ctr[i] + ax[0][i] * h[0] * sx + ax[1][i] * h[1] * sy + ax[2][i] * h[2] * sz for i in range(3)])
+    piv = {}
+    for b in geo["minecraft:geometry"][0]["bones"]:
+        piv[b["name"]] = b.get("pivot", [0, 0, 0])
+    # world pivot of each bone = its pivot transformed by the parent chain
+    tf_bones = {b["name"]: b for b in geo["minecraft:geometry"][0]["bones"]}
+
+    def world(name, p):
+        b = tf_bones[name]
+        while b.get("parent"):
+            par = tf_bones[b["parent"]]
+            Rm = _rot(*par.get("rotation", [0, 0, 0]))
+            pv = par.get("pivot", [0, 0, 0])
+            q = _mv(Rm, [p[i] - pv[i] for i in range(3)])
+            p = [q[i] + pv[i] for i in range(3)]
+            b = par
+        return p
+    fails = []
+    for bn, exp in want.items():
+        if bn not in R:
+            continue
+        pw = world(bn, piv[bn])
+        tip = max(R[bn], key=lambda c: sum((c[i] - pw[i]) ** 2 for i in range(3)))
+        d = [tip[i] - pw[i] for i in range(3)]
+        L = max(1e-6, max(abs(v) for v in d))
+        side = 1 if pw[0] > 0.01 else -1 if pw[0] < -0.01 else (1 if d[0] > 0 else -1)
+        ok = {"up": d[1] > 0.2 * L, "down": d[1] < -0.2 * L, "front": d[2] < -0.2 * L, "back": d[2] > 0.2 * L,
+              "out": d[0] * side > 0.2 * L, "in": d[0] * side < -0.2 * L,
+              "left": d[0] > 0.2 * L, "right": d[0] < -0.2 * L}
+        bad = [e for e in exp.get("tip", []) if not ok[e]]
+        if bad:
+            fails.append(f"{bn}: tip should point {'+'.join(exp['tip'])}, it doesn't ({', '.join(bad)}); "
+                         f"tip offset x{d[0]:+.1f} y{d[1]:+.1f} z{d[2]:+.1f} (front=-z, character left=+x)")
+    return fails
+
+
 # ---------------------------------------------------------------- collisions during animation
 def _mm(a, b):
     return [[sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
@@ -388,7 +479,11 @@ def _mv(a, v):
 
 
 def _rot(rx, ry, rz):
-    """Rotation matrix, Blockbench/Bedrock order (Z, then Y, then X)."""
+    """Rotation matrix of a Bedrock/GeckoLib geo rotation, in geo coordinates (order Z, Y, X).
+    MEASURED in Blockbench (probe cubes): geo X is mirrored vs Blockbench and X/Y rotations are negated on import,
+    so in geo space a rotation acts as the standard right-handed one with angles (-rx, +ry, -rz)."""
+    rx, rz = -rx, -rz
+
     def m(a, axis):
         c, s_ = math.cos(math.radians(a)), math.sin(math.radians(a))
         return {"x": [[1, 0, 0], [0, c, -s_], [0, s_, c]], "y": [[c, 0, s_], [0, 1, 0], [-s_, 0, c]],
@@ -531,6 +626,8 @@ def main():
         spec["paint_group"] = a.group.split(",")
     out = Path(a.out)
     geo, img, glow, used = build(spec, out)
+    for msg in check_orientation(spec, geo):
+        print(f"  [FAIL] orientation {msg}")
     anim, left = fix_collisions(spec, geo)
     damped = {b["name"]: b["_amp"] for b in spec["bones"] if b.get("_amp")}
     i = spec["id"]

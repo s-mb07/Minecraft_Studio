@@ -62,9 +62,9 @@ reference rigs. Each line is a yes/no check.
   dark bottoms) and baked AO turn wrong as soon as a limb or the head rotates. `entity_gen` paints entities
   unlit by default: flat material colour, 1-px outline, material motifs.
 - **Animated entities: home-made contact shading** (`entity_gen.py --shade` or `"shading": "contact"`). Per
-  texel, short rays (3 units) test only the cubes of the **same rigid block** (a bone with a `role` or
+  texel, 64 short rays (4 units) test only the cubes of the **same rigid block** (a bone with a `role` or
   `"animated": true`, plus its decorative children). The hit fraction darkens the pixel by 0-2 steps of its own
-  ramp, with a 4×4 dithered edge: under the collar, at horn segment joints, under a belt or trim. No new colours,
+  ramp, occlusion smoothed over about 1 unit, then 2 clean bands (no dithering, which looked patchy): under the collar, at horn segment joints, under a belt or trim. No new colours,
   painted details kept, valid in any pose, about 10 s, no Blockbench needed. The Baked AO plugin
   (even exploded) gave blurry blobs that ignored the cube edges at our density: the user rejected it.
 - **Static props** (blocks, items, things that never move): the Baked AO plugin directly (`bb_render.py --ao`),

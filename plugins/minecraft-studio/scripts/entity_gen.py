@@ -644,7 +644,7 @@ def _ray_box(o, d, box, L):
     return True
 
 
-def shade_contact(spec: dict, geo: dict, img, n: int, reach: float = 3.0, rays: int = 24) -> int:
+def shade_contact(spec: dict, geo: dict, img, n: int, reach: float = 4.0, rays: int = 64) -> int:
     """Home-made ambient occlusion painted in ramp steps, valid in any pose.
     Only cubes of the SAME rigid block (rigid_clusters) occlude each other, so a joint that rotates never leaves a
     wrong shadow. Per texel: rays over the hemisphere, length `reach` model units; the hit fraction darkens the
@@ -663,7 +663,6 @@ def shade_contact(spec: dict, geo: dict, img, n: int, reach: float = 3.0, rays: 
         ax = [[M[r][j] for r in range(3)] for j in range(3)]   # local axis j in world
         hf = [c["size"][i] / 2 + c.get("inflate", 0) for i in range(3)]
         items.append((b["name"], k, c, ax, ctr, hf))
-    bayer = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
     changed = 0
     for bn, k, c, ax, ctr, hf in items:
         mat = mat_of.get((bn, k))
@@ -680,30 +679,40 @@ def shade_contact(spec: dict, geo: dict, img, n: int, reach: float = 3.0, rays: 
             nrm = [ax[na][i] * (1 if amax else -1) for i in range(3)]
             tu, tv = ax[ua], ax[va]
             W, H = r[2] * n, r[3] * n
+            occ = [[0.0] * W for _ in range(H)]
             for j in range(H):
                 for i in range(W):
                     fu, fv = (i + 0.5) / W, (j + 0.5) / H
                     lu = (fu - 0.5) * size[ua] * us
                     lv = (fv - 0.5) * size[va] * vs
-                    ln = hf[na]
-                    p = [ctr[q] + nrm[q] * (ln + 0.02) + tu[q] * lu + tv[q] * lv for q in range(3)]
+                    p = [ctr[q] + nrm[q] * (hf[na] + 0.02) + tu[q] * lu + tv[q] * lv for q in range(3)]
                     hits = 0
                     for dx, dy, dz in dirs:
                         d = [tu[q] * dx + tv[q] * dy + nrm[q] * dz for q in range(3)]
                         if any(_ray_box(p, d, o, reach) for o in others):
                             hits += 1
-                    occ = hits / len(dirs)
-                    if occ <= 0.05:
+                    occ[j][i] = hits / len(dirs)
+            if not any(any(row) for row in occ):
+                continue
+            # smooth over ~1 model unit: even bands that follow the contact line, no ray noise
+            rad_px = max(1, n)
+            for _ in range(2):
+                occ = [[sum(occ[jj][i] for jj in range(max(0, j - rad_px), min(H, j + rad_px + 1)))
+                        / (min(H, j + rad_px + 1) - max(0, j - rad_px)) for i in range(W)] for j in range(H)]
+                occ = [[sum(occ[j][ii] for ii in range(max(0, i - rad_px), min(W, i + rad_px + 1)))
+                        / (min(W, i + rad_px + 1) - max(0, i - rad_px)) for i in range(W)] for j in range(H)]
+            for j in range(H):
+                for i in range(W):
+                    o = occ[j][i]
+                    step = 2 if o > 0.42 else 1 if o > 0.12 else 0   # clean bands, no dithering
+                    if not step:
                         continue
                     X, Y = r[0] * n + i, r[1] * n + j
                     s = idx[mat].get(img.get(X, Y)[:3])
                     if s is None:
                         continue
-                    t = occ * 2.6 + (bayer[Y % 4][X % 4] / 16 - 0.5) * 0.8   # 0..2 steps, dithered edge
-                    step = max(0, min(2, int(t)))
-                    if step:
-                        img.set(X, Y, ramps[mat][max(0, s - step)])
-                        changed += 1
+                    img.set(X, Y, ramps[mat][max(0, s - step)])
+                    changed += 1
     return changed
 
 

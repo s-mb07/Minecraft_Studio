@@ -576,7 +576,9 @@ def rigid_clusters(spec: dict) -> dict:
         while n and not (by[n].get("role") or by[n].get("animated")):
             n = by[n].get("parent")
         out[b["name"]] = n or "root"
-    return out
+    # optional coarser blocks for AO: {"arm_l": ["arm_l", "forearm_l", "hand_l"], ...} (spec "ao_groups")
+    merge = {m: g for g, ms in spec.get("ao_groups", {}).items() for m in ms}
+    return {k: merge.get(v, v) for k, v in out.items()}
 
 
 def explode_geo(geo: dict, spec: dict, gap: float = 48) -> dict:

@@ -88,3 +88,9 @@ reference rigs. Each line is a yes/no check.
 - Render once per validation step (one contact sheet), after the checks pass. Never render to "see if it worked"
   when a check can tell.
 - Keep every iteration (`studio-tests/<name>/`: script, spec, bbmodel, renders).
+
+## 10. Shading decision (validated by the user on the minotaur)
+- **Chosen for animated entities:** Baked AO plugin, exploded **by animated limb group** (spec `ao_groups`):
+  each arm (shoulder + upper arm + forearm + hand), each leg (thigh + shin), bust (root + pelvis + chest + loin),
+  head, tail. Neutral shadow colour (never the plugin's violet default). Looked better than one block per bone
+  and better than the home-made `--shade` (kept as a fast, Blockbench-free fallback).

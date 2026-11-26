@@ -40,6 +40,14 @@ easeIn/Out/InOut + sine, quad, cubic, quart, quint, expo, circ, back, elastic, b
 - **Serpent:** sine wave travelling down the spine, phase increasing from head to tail.
 - **Flyer:** the downstroke lifts the body, the body lags the wings slightly.
 
+## Rig rules
+- **Animate bones (groups), never single cubes.** A part that moves on its own gets its own bone (pivot at its
+  joint). `entity_gen.py` animates bones by `role`.
+- Name animations `animation.<id>.<name>` (idle, walk, run, attack, hurt, death). Loops start and end on the same key.
+- **Molang (optional):** procedural secondary motion such as breathing, tails or wings, e.g.
+  `math.sin(query.anim_time * 90) * 2` (Molang trig takes degrees). Baked keys are the default because they're
+  predictable and collision-checked. Only use Molang when the motion must react to the game.
+
 ## Collisions
 - Limbs must never pass through other parts (legs through legs, the jaw through the head, the tail through the
   body, legs curling into the body on death).

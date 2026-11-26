@@ -77,6 +77,20 @@ add a suffix instead (`_v2`, `_d4_ao`).
 | Bone View | rig check (pivots and hierarchy) before animating |
 | Voxel Shape Generator / glTF importer | hitboxes for block entities / importing Blender meshes (Generic projects) |
 
+## Pick a style first (sets the cube budget and texture size)
+| Style | Look | Cubes | Texture (density 1) |
+|---|---|---|---|
+| Vanilla-like mob | simple cubes, readable proportions, few details | 8-30 | 32-64 |
+| Cute / chibi | big head, small body, big eyes, bouncy motion | 10-35 | 32 |
+| Humanoid / NPC | head, torso, arms, legs; clothes as separate cubes | 15-50 | 64 |
+| Semi-detailed creature | separate ears/horns/tail, fur or scale detail | 25-70 | 64 |
+| Mech / robot | orthogonal panels, visible joints, linear motion | 30-120 | 64 |
+| Organic monster | sculpted forms, controlled asymmetry, teeth, tentacles | 40-150 | 64-128 |
+| Boss / elite | strong silhouette, signature parts, layered detail | 60-150 | 128 |
+| Animated item / prop | small object with moving parts (chest, book, totem) | 5-40 | 16-32 |
+Silhouette and readability beat cube count. To match vanilla proportions, study the vanilla mobs: CEM Template
+Loader in Blockbench, or the `.geo.json` files in Mojang/bedrock-samples, read with `bbmodel_study.py`.
+
 ## No overlap, no interpenetration (user review of the first test)
 - **Chained parts must not share face planes.** Upper and lower limb, body and plate, head and jaw would z-fight
   at the joint. `entity_gen.py` makes each hierarchy level 0.01 thinner and each extra cube of a bone 0.005
@@ -97,6 +111,8 @@ add a suffix instead (`_v2`, `_d4_ao`).
 - Outlines are a style choice (black vs darker local colour). On 3D entities, prefer darker local colour.
 - Seamless repeating materials: paint on a 2×2 group of duplicated cubes so the pattern crosses the edges.
 - Blockbench tabs pile up: `bb_render.py` closes the projects it opened.
+
+Further reading: `${CLAUDE_PLUGIN_ROOT}/docs/learning-resources.md`.
 
 ## From a photo reference (next step)
 Extract the palette (quantise to 4-shade ramps) and the proportions (bounding boxes of head, body, limbs) first.

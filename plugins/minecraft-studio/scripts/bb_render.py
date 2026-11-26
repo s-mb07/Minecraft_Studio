@@ -67,8 +67,8 @@ class MCP:
         return " ".join(c.get("text", "") for c in res.get("content", []) if c.get("type") == "text")
 
 
-VIEWS = {  # camera position relative to the model centre (model faces -Z)
-    "front34": [-1.0, 0.55, -1.25], "side": [-1.6, 0.25, 0.0], "back34": [1.1, 0.6, 1.2], "top": [-0.4, 1.5, -0.9]}
+VIEWS = {  # camera direction from the model centre (model faces -Z); normalised, distance set by the bounding box
+    "front": [0.0, 0.15, -1.0], "front34": [-0.7, 0.35, -0.8], "side": [-1.0, 0.15, 0.0], "back34": [0.7, 0.35, 0.8]}
 
 
 def load_model(m: MCP, geo: Path, tex: Path, name: str):
@@ -136,7 +136,8 @@ def snap_palette(src: Path, ao: Path):
 
 def tile(m: MCP, view: str, center, radius, size):
     d = VIEWS[view]
-    pos = [center[i] + d[i] * radius for i in range(3)]
+    n = sum(v * v for v in d) ** 0.5
+    pos = [center[i] + d[i] / n * radius for i in range(3)]
     return m.image(m.call("set_camera_angle", view=m.view, position=pos, target=center, projection="perspective"))
 
 
@@ -196,8 +197,11 @@ def main():
     geo, tex = Path(a.geo), Path(a.texture)
     g = json.loads(geo.read_text(encoding="utf-8"))["minecraft:geometry"][0]
     ys = [c["origin"][1] + c["size"][1] for b in g["bones"] for c in b.get("cubes", [])]
-    xs = [abs(c["origin"][0]) + c["size"][0] for b in g["bones"] for c in b.get("cubes", [])]
-    center, radius = [0, max(ys) * 0.45, 0], max(max(ys), max(xs)) * 1.35
+    xs = [max(abs(c["origin"][0]), abs(c["origin"][0] + c["size"][0])) for b in g["bones"] for c in b.get("cubes", [])]
+    zs = [max(abs(c["origin"][2]), abs(c["origin"][2] + c["size"][2])) for b in g["bones"] for c in b.get("cubes", [])]
+    h, w = max(ys), max(max(xs), max(zs))
+    # frame the model: distance from the bounding sphere (perspective ~ 45 deg) so it fills ~80% of the tile
+    center, radius = [0, h * 0.5, 0], ((h / 2) ** 2 + w ** 2) ** 0.5 * 2.3
     if a.ao:
         ok = bake_ao(m, geo, tex, tex.with_name(tex.stem + "_ao.png"), per_mesh=a.per_mesh)
         if ok and a.snap:

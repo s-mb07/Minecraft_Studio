@@ -149,7 +149,15 @@ def build(spec: dict, root: Path):
     mats = spec["materials"]
     ramps = {k: ramp(v["color"]) for k, v in mats.items()}
     cubes = [dict(c, bone=b["name"], idx=i) for b in spec["bones"] for i, c in enumerate(b.get("cubes", []))]
-    used = pack(cubes, tw, th)
+    while True:  # grow the atlas (height, then width) until every box-UV footprint fits
+        try:
+            used = pack(cubes, tw, th)
+            break
+        except SystemExit:
+            if tw >= 1024:
+                raise
+            tw, th = (tw, th * 2) if th <= tw else (tw * 2, th)
+    spec["texture"] = [tw, th]
     img, glow = _png.Image(tw * n, th * n), _png.Image(tw * n, th * n)
     glow_used = False
     for c in cubes:

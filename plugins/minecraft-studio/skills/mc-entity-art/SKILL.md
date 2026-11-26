@@ -11,6 +11,10 @@ description: >-
 Scripts: `${CLAUDE_PLUGIN_ROOT}/scripts/`. Worked example: `examples/ms-example-entity-neoforge-1.21.1`
 (spec: `templates/entity/cave_crawler.json`). Animation details: **mc-animation**. Java side: **mc-geckolib**.
 
+**Read first:** `${CLAUDE_PLUGIN_ROOT}/docs/creation-rules.md` (reading the reference, anatomy, expression,
+orientation, geometry hygiene, texture, AO, animation, process). The user's manual Blockbench fixes come back
+into the spec with `bb_sync.py`.
+
 ## Validation gates (art is the exception to Fast mode)
 Stop and show the user the result at each gate. Go on only after they approve, unless they explicitly asked
 for everything in one go.

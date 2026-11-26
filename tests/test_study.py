@@ -312,7 +312,7 @@ class TestExplodedAO(unittest.TestCase):
         far = e.boxes(e.explode_geo(geo, spec, gap=48))
         by = {}
         for (bn, c, _, _) in far:
-            by.setdefault(cl[bn], []).append(c)
+            by.setdefault(cl[bn.split("__")[0]], []).append(c)
         blocks = list(by.values())
         # different blocks never overlap once exploded
         self.assertTrue(all(abs(p[0] - q[0]) > 8 or abs(p[2] - q[2]) > 8 for i, A in enumerate(blocks) for B in blocks[i + 1:] for p in A[:1] for q in B[:1]))

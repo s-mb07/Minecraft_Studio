@@ -32,7 +32,13 @@ class Image:
 
 
 def load(path) -> Image:
-    data = Path(path).read_bytes()
+    return loads(Path(path).read_bytes())
+
+
+def loads(data: bytes) -> Image:
+    if data[:5] == b"data:":  # data URL (embedded .bbmodel textures, MCP screenshots)
+        import base64
+        data = base64.b64decode(data.split(b",", 1)[1])
     if data[:8] != b"\x89PNG\r\n\x1a\n":
         raise ValueError("not a PNG")
     pos, idat, plte, trns = 8, b"", None, None

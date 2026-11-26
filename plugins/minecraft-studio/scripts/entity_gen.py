@@ -1,0 +1,390 @@
+#!/usr/bin/env python3
+"""Generate a GeckoLib entity from a compact spec: geometry, box-UV atlas, pixel-art texture, glowmask, animations.
+
+  entity_gen.py <spec.json> --out <mod>/src/main/resources/assets/<modid> [--pose anim@t --pose-out f.geo.json]
+
+Writes geo/entity/<id>.geo.json, animations/entity/<id>.animation.json, textures/entity/<id>.png
+(+ <id>_glowmask.png when a material is emissive). Paths match GeckoLib 4 DefaultedEntityGeoModel.
+
+Spec (see templates/entity/cave_crawler.json):
+  id, texture [w,h], light "top-front-left", materials {name: {color, pattern?: plates|scales|smooth, emissive?}},
+  bones [{name, parent?, pivot, rotation?, role?, side?: -1|1, phase?: 0..1, cubes: [{origin, size, mat, inflate?}]}],
+  details [{bone, face, px: [[x,y,shade|"emit"|"#hex"],...]}], animations {name: {length, loop, kind}} kinds:
+  idle, walk, attack, hurt, death. Roles drive motion: body, head, jaw, antenna, tail, leg (upper), leg_lower.
+
+Painting = method of the reference study: 4-shade hue-shifted ramps per material, light from top, rim highlight
+on top edges, contact shadow on bottom rows, material pattern, sparse 2-px clusters (no single-pixel noise),
+details last. Bake real ambient occlusion afterwards in Blockbench (Baked AO plugin, see mc-entity-art).
+Animations are baked at 20 fps with linear keys, like the best reference rigs.
+"""
+from __future__ import annotations
+
+import argparse
+import colorsys
+import json
+import math
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _png  # noqa: E402
+
+FPS = 20
+
+
+# ---------------------------------------------------------------- colour
+def hexrgb(h: str):
+    h = h.lstrip("#")
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def ramp(hexcol: str, n: int = 4) -> list[tuple]:
+    """Dark -> light, hue-shifted: shadows drift to blue/purple, highlights to warm yellow (colour gradient method)."""
+    r, g, b = [v / 255 for v in hexrgb(hexcol)]
+    h, l, s = colorsys.rgb_to_hls(r, g, b)
+    out = []
+    steps = [-0.19, -0.09, 0.0, 0.11, 0.2][:n] if n <= 5 else [i * 0.08 - 0.2 for i in range(n)]
+    base_i = steps.index(0.0)
+    for k, dl in enumerate(steps):
+        t = (k - base_i)
+        target = 0.70 if t < 0 else 0.13
+        hh = h + ((target - h + 0.5) % 1 - 0.5) * min(0.25, 0.08 * abs(t))
+        ss = min(1, s * (1 + 0.12 * abs(t))) if t < 0 else s * (1 - 0.08 * t)
+        rr, gg, bb = colorsys.hls_to_rgb(hh % 1, max(0.02, min(0.96, l + dl)), max(0, min(1, ss)))
+        out.append((round(rr * 255), round(gg * 255), round(bb * 255), 255))
+    return out
+
+
+def hsh(*a) -> float:
+    x = 0
+    for v in a:
+        x = (x * 1000003 ^ int(v * 7919)) & 0xFFFFFFFF
+    x = (x ^ (x >> 15)) * 2246822519 & 0xFFFFFFFF
+    return ((x ^ (x >> 13)) & 0xFFFF) / 0xFFFF
+
+
+# ---------------------------------------------------------------- UV
+def box(size):
+    dx, dy, dz = [max(1, math.ceil(v)) for v in size]
+    return dx, dy, dz
+
+
+def faces_of(u, v, size):
+    """Blockbench/Bedrock box-UV layout -> {face: (x, y, w, h)}."""
+    dx, dy, dz = box(size)
+    return {"up": (u + dz, v, dx, dz), "down": (u + dz + dx, v, dx, dz),
+            "east": (u, v + dz, dz, dy), "north": (u + dz, v + dz, dx, dy),
+            "west": (u + dz + dx, v + dz, dz, dy), "south": (u + 2 * dz + dx, v + dz, dx, dy)}
+
+
+def pack(cubes, tw, th):
+    """Shelf packing of box-UV footprints, biggest first. Mirrored pairs (same size+mat, mirror=True) share a slot."""
+    items = sorted(cubes, key=lambda c: -(box(c["size"])[1] + box(c["size"])[2]) * 100 - 2 * (box(c["size"])[0] + box(c["size"])[2]))
+    x = y = row_h = 0
+    shared = {}
+    for c in items:
+        dx, dy, dz = box(c["size"])
+        w, h = 2 * (dx + dz), dz + dy
+        key = c.get("share")
+        if key and key in shared:
+            c["uv"] = shared[key]; continue
+        if x + w > tw:
+            x, y, row_h = 0, y + row_h, 0
+        if y + h > th:
+            raise SystemExit(f"error: texture {tw}x{th} too small for the cubes (increase texture size)")
+        c["uv"] = [x, y]
+        if key:
+            shared[key] = c["uv"]
+        x, row_h = x + w, max(row_h, h)
+    return y + row_h
+
+
+# ---------------------------------------------------------------- painting
+LIGHT = {"up": 3, "north": 2, "east": 2, "west": 2, "south": 1, "down": 0}
+
+
+def paint_face(img, rect, face, mat, rmp, seed, n=1):
+    """n = pixels per model unit. Patterns live in model units (scale with the cube); rim light, contact shadow
+    and clusters stay pixel-sized, so a higher density gives finer shading, not just bigger pixels."""
+    x0, y0, w, h = [v * n for v in rect]
+    pat = mat.get("pattern", "smooth")
+    base = LIGHT[face]
+    for j in range(h):
+        for i in range(w):
+            s = base
+            if face not in ("up", "down"):
+                fy = j / max(1, h - 1)
+                if j == 0:
+                    s = min(3, base + 1)                 # rim light on the top edge
+                elif fy > 0.7 and h >= 3:
+                    s = max(0, base - 1)                 # form shadow low on the side
+                if j >= h - max(1, n // 2) and h >= 4 * n:
+                    s = 0                                # contact shadow
+            elif face == "up" and (i in (0, w - 1) or j in (0, h - 1)) and w > 2 and h > 2:
+                s = 3
+            if pat == "plates":
+                if face in ("east", "west", "up"):
+                    px = i if face != "up" else j
+                    along, sub = px // n, px % n
+                    if along % 4 == 3 and sub >= n // 2:
+                        s = max(0, s - 1)                # plate seam
+                    elif along % 4 == 0 and along > 0 and sub < max(1, n // 2):
+                        s = min(3, s + 1)                # ridge catch-light after the seam
+            elif pat == "scales" and (i // n + 2 * (j // n // 2)) % 4 == 0 and (j // n) % 2 == 0:
+                s = max(0, s - 1)
+            # sparse 2-px clusters instead of single-pixel noise
+            r = hsh(seed, x0 + i, y0 + j)
+            if 0 < i < w - 1 and 0 < j < h - 1 and r < 0.07:
+                s = max(0, min(3, s + (1 if r < 0.025 else -1)))
+                img.set(x0 + i, y0 + j, rmp[s])
+                if i + 1 < w - 1:
+                    img.set(x0 + i + 1, y0 + j, rmp[s])
+                continue
+            img.set(x0 + i, y0 + j, rmp[s])
+
+
+def build(spec: dict, root: Path):
+    tw, th = spec.get("texture", [64, 64])
+    n = int(spec.get("density", 1))
+    mats = spec["materials"]
+    ramps = {k: ramp(v["color"]) for k, v in mats.items()}
+    cubes = [dict(c, bone=b["name"], idx=i) for b in spec["bones"] for i, c in enumerate(b.get("cubes", []))]
+    used = pack(cubes, tw, th)
+    img, glow = _png.Image(tw * n, th * n), _png.Image(tw * n, th * n)
+    glow_used = False
+    for c in cubes:
+        rect = faces_of(*c["uv"], c["size"])
+        for f, r in rect.items():
+            paint_face(img, r, f, mats[c["mat"]], ramps[c["mat"]], sum(map(ord, c["bone"])) % 997 + c["idx"], n)
+            if mats[c["mat"]].get("emissive"):
+                glow_used = True
+                for j in range(r[3] * n):
+                    for i in range(r[2] * n):
+                        glow.set(r[0] * n + i, r[1] * n + j, img.get(r[0] * n + i, r[1] * n + j))
+    by_bone = {}
+    for c in cubes:
+        by_bone.setdefault(c["bone"], c)
+    for d in spec.get("details", []):
+        c = by_bone[d["bone"]]
+        fx, fy, fw, fh = faces_of(*c["uv"], c["size"])[d["face"]]
+        rm = ramps[d.get("mat", c["mat"])]
+        for px in d["px"]:
+            x, y, s = px
+            if not (0 <= x < fw and 0 <= y < fh):
+                continue
+            emit = s == "emit"
+            col = (*hexrgb(mats[d.get("emit_mat", "eye")]["color"] if emit else s), 255) if emit or str(s).startswith("#") else rm[int(s)]
+            for yy in range(n):           # a detail pixel = one model unit, whatever the density
+                for xx in range(n):
+                    X, Y = (fx + x) * n + xx, (fy + y) * n + yy
+                    c2 = col
+                    if emit and n > 1 and (xx in (0, n - 1) or yy in (0, n - 1)):
+                        c2 = tuple(int(v * 0.8) for v in col[:3]) + (255,)  # soft glow edge at high density
+                    img.set(X, Y, c2)
+                    if emit:
+                        glow.set(X, Y, c2); glow_used = True
+    # geometry
+    bones = []
+    for b in spec["bones"]:
+        gb = {"name": b["name"], "pivot": b.get("pivot", [0, 0, 0])}
+        if b.get("parent"):
+            gb["parent"] = b["parent"]
+        if b.get("rotation"):
+            gb["rotation"] = b["rotation"]
+        cs = [c for c in cubes if c["bone"] == b["name"]]
+        if cs:
+            gb["cubes"] = []
+            for c in sorted(cs, key=lambda c: c["idx"]):
+                gc = {"origin": c["origin"], "size": c["size"], "uv": c["uv"]}
+                for k in ("inflate", "mirror", "rotation", "pivot"):
+                    if c.get(k):
+                        gc[k] = c[k]
+                gb["cubes"].append(gc)
+        bones.append(gb)
+    xs = [abs(v) for c in cubes for v in (c["origin"][0], c["origin"][0] + c["size"][0], c["origin"][2], c["origin"][2] + c["size"][2])]
+    ys = [c["origin"][1] + c["size"][1] for c in cubes]
+    geo = {"format_version": "1.12.0", "minecraft:geometry": [{
+        "description": {"identifier": f"geometry.{spec['id']}", "texture_width": tw, "texture_height": th,
+                        "visible_bounds_width": math.ceil(max(xs) * 2 / 16) + 1, "visible_bounds_height": math.ceil(max(ys) / 16) + 1,
+                        "visible_bounds_offset": [0, math.ceil(max(ys) / 32), 0]},
+        "bones": bones}]}
+    return geo, img, (glow if glow_used else None), used
+
+
+# ---------------------------------------------------------------- animation
+def smooth(a, b, t):
+    t = max(0.0, min(1.0, t))
+    return a + (b - a) * t * t * (3 - 2 * t)
+
+
+def env(t, keys):
+    """Piecewise smoothstep through [(time, value), ...]."""
+    if t <= keys[0][0]:
+        return keys[0][1]
+    for (t0, v0), (t1, v1) in zip(keys, keys[1:]):
+        if t <= t1:
+            return smooth(v0, v1, (t - t0) / (t1 - t0 or 1))
+    return keys[-1][1]
+
+
+def motion(kind: str, b: dict, t: float, L: float, spec: dict):
+    """(rotation [x,y,z] deg, position [x,y,z] px) of a bone at time t."""
+    role, s, ph = b.get("role"), b.get("side", 1), b.get("phase", 0.0)
+    p = 2 * math.pi * (t / L + ph)
+    w = 2 * math.pi * t / L
+    rot, pos = [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]
+    drag = b.get("drag", 0.0)  # seconds of lag behind the parent motion (overlap)
+    if kind == "walk":
+        if role == "leg":
+            rot[1] = 22 * math.sin(p) * s
+            rot[2] = s * 16 * max(0.0, math.cos(p))          # lift during the forward swing
+        elif role == "leg_lower":
+            rot[2] = -s * 9 * max(0.0, math.cos(p))
+        elif role == "body":
+            pos[1] = 0.35 * math.sin(2 * w)                  # bob at twice the step frequency
+            rot[2] = 1.5 * math.sin(w)
+        elif role == "head":
+            rot[1] = -2.5 * math.sin(w)
+        elif role in ("antenna", "tail"):
+            rot[0] = 7 * math.sin(w - 2 * math.pi * drag / L * 4)
+            rot[1] = 4 * math.sin(w - 0.8) * s
+        elif role == "jaw":
+            rot[1] = s * 3 * max(0.0, math.sin(2 * w))
+    elif kind == "idle":
+        if role == "body":
+            pos[1] = 0.25 * math.sin(w)
+            rot[0] = 0.8 * math.sin(w)
+        elif role == "head":
+            rot[1] = 6 * math.sin(w + 0.5) * math.sin(w * 0.5) ** 2
+            rot[0] = 2 * math.sin(2 * w)
+        elif role in ("antenna", "tail"):
+            rot[0] = 9 * math.sin(2 * w + (0 if s > 0 else 1.3) - drag * 6)
+            rot[1] = 6 * math.sin(w + (0.7 if s > 0 else 0)) * s
+        elif role == "jaw":
+            pulse = max(0.0, math.sin(4 * w)) ** 8 + max(0.0, math.sin(4 * w + 0.6)) ** 8
+            rot[1] = -s * 12 * pulse
+        elif role == "leg":
+            rot[1] = 2 * math.sin(w + ph * 6) * s
+    elif kind == "attack":
+        if role == "body":
+            rot[0] = env(t, [(0, 0), (0.3 * L, -13), (0.45 * L, 9), (0.75 * L, 2), (L, 0)])
+            pos[2] = env(t, [(0, 0), (0.3 * L, 1.5), (0.45 * L, -2.5), (L, 0)])
+            pos[1] = env(t, [(0, 0), (0.3 * L, 1.0), (0.45 * L, -0.5), (L, 0)])
+        elif role == "head":
+            rot[0] = env(t, [(0, 0), (0.3 * L, -10), (0.45 * L, 16), (0.8 * L, 0)])
+        elif role == "jaw":
+            rot[1] = -s * env(t, [(0, 0), (0.3 * L, 28), (0.42 * L, 30), (0.47 * L, -6), (0.7 * L, 0)])
+        elif role in ("antenna", "tail"):
+            rot[0] = env(t, [(0, 0), (0.33 * L, -18), (0.5 * L, 14), (0.85 * L, 0)])
+        elif role == "leg" and b.get("front"):
+            rot[2] = s * env(t, [(0, 0), (0.3 * L, 30), (0.45 * L, -10), (L, 0)])
+            rot[1] = s * env(t, [(0, 0), (0.3 * L, 15), (0.45 * L, -12), (L, 0)])
+    elif kind == "hurt":
+        decay = math.exp(-5 * t / L)
+        if role == "body":
+            rot[2] = 9 * math.sin(28 * t) * decay
+            pos[1] = 0.8 * decay * (1 - math.exp(-30 * t))
+        elif role == "leg":
+            rot[2] = s * 14 * decay * (1 - math.exp(-30 * t))
+        elif role == "head":
+            rot[0] = -12 * decay * (1 - math.exp(-30 * t))
+        elif role == "jaw":
+            rot[1] = -s * 20 * decay
+    elif kind == "death":
+        h = spec.get("height", 8)
+        if role == "root":
+            rot[2] = env(t, [(0, 0), (0.25 * L, 12), (0.6 * L, 180), (0.7 * L, 172), (0.8 * L, 180)])
+            pos[1] = env(t, [(0, 0), (0.25 * L, 0), (0.6 * L, h), (L, h)])
+        elif role == "leg":
+            curl = env(t, [(0, 0), (0.5 * L, -35), (L, -45)])
+            twitch = 6 * math.sin(30 * t) * max(0.0, (t - 0.6 * L) / (0.4 * L)) * math.exp(-4 * max(0.0, t - 0.6 * L))
+            rot[2] = s * (curl + twitch)
+        elif role == "leg_lower":
+            rot[2] = s * env(t, [(0, 0), (0.6 * L, -40), (L, -50)])
+        elif role in ("antenna", "jaw"):
+            rot[0] = env(t, [(0, 0), (0.6 * L, -20), (L, -25)])
+    return rot, pos
+
+
+def animations(spec: dict) -> dict:
+    out = {}
+    for name, a in spec.get("animations", {}).items():
+        L, kind = a["length"], a.get("kind", name)
+        loop = {"loop": True, "once": False, "hold": "hold_on_last_frame"}[a.get("loop", "loop")]
+        bones = {}
+        n = max(2, round(L * FPS))
+        for b in spec["bones"]:
+            if not b.get("role"):
+                continue
+            rk, pk = {}, {}
+            for i in range(n + 1):
+                t = round(i * L / n, 4)
+                r, p = motion(kind, b, t, L, spec)
+                rk[f"{t:g}"] = [round(v, 2) for v in r]
+                pk[f"{t:g}"] = [round(v, 3) for v in p]
+            ch = {}
+            if any(any(v) for v in rk.values()):
+                ch["rotation"] = rk
+            if any(any(v) for v in pk.values()):
+                ch["position"] = pk
+            if ch:
+                bones[b["name"]] = ch
+        out[f"animation.{spec['id']}.{name}"] = {"loop": loop, "animation_length": L, "bones": bones}
+    return {"format_version": "1.8.0", "animations": out, "geckolib_format_version": 2}
+
+
+def pose(geo: dict, anim: dict, name: str, t: float) -> dict:
+    """Geometry with an animation frame baked into bone rotations (for static renders of key poses)."""
+    g = json.loads(json.dumps(geo))
+    a = next(v for k, v in anim["animations"].items() if k.endswith("." + name))
+    for b in g["minecraft:geometry"][0]["bones"]:
+        ch = a["bones"].get(b["name"], {})
+        for kind in ("rotation", "position"):
+            if kind in ch:
+                keys = sorted(ch[kind], key=float)
+                k = min(keys, key=lambda x: abs(float(x) - t))
+                v = ch[kind][k]
+                if kind == "rotation":
+                    b["rotation"] = [round(b.get("rotation", [0, 0, 0])[i] + v[i], 2) for i in range(3)]
+                elif any(v):
+                    b["pivot"] = [b["pivot"][i] + v[i] for i in range(3)]
+                    for c in b.get("cubes", []):
+                        c["origin"] = [c["origin"][i] + v[i] for i in range(3)]
+    return g
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("spec"); ap.add_argument("--out", required=True)
+    ap.add_argument("--pose", action="append", default=[], help="anim@time, e.g. walk@0.25 (writes posed geo files)")
+    ap.add_argument("--pose-dir")
+    ap.add_argument("--density", type=int, help="pixels per model unit (1 = vanilla look; 2-4 = room for real shading/AO)")
+    a = ap.parse_args()
+    spec = json.loads(Path(a.spec).read_text(encoding="utf-8"))
+    if a.density:
+        spec["density"] = a.density
+    out = Path(a.out)
+    geo, img, glow, used = build(spec, out)
+    anim = animations(spec)
+    i = spec["id"]
+    (out / "geo/entity").mkdir(parents=True, exist_ok=True)
+    (out / "animations/entity").mkdir(parents=True, exist_ok=True)
+    (out / f"geo/entity/{i}.geo.json").write_text(json.dumps(geo, indent=1) + "\n", encoding="utf-8")
+    (out / f"animations/entity/{i}.animation.json").write_text(json.dumps(anim, separators=(",", ":")) + "\n", encoding="utf-8")
+    img.save(out / f"textures/entity/{i}.png")
+    if glow:
+        glow.save(out / f"textures/entity/{i}_glowmask.png")
+    for pz in a.pose:
+        name, t = pz.split("@")
+        d = Path(a.pose_dir or out / "_poses")
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{i}_{name}_{t}.geo.json").write_text(json.dumps(pose(geo, anim, name, float(t))), encoding="utf-8")
+    nb = sum(1 for b in geo["minecraft:geometry"][0]["bones"])
+    nc = sum(len(b.get("cubes", [])) for b in geo["minecraft:geometry"][0]["bones"])
+    print(f"ENTITY {i}: {nc} cubes, {nb} bones, texture {img.w}x{img.h} ({used}px rows used), "
+          f"{len(anim['animations'])} animations{', glowmask' if glow else ''}")
+
+
+if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    main()

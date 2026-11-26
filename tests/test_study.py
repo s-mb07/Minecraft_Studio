@@ -218,3 +218,54 @@ class TestStudy(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestEntityArt(unittest.TestCase):
+    def test_generate_and_study(self):
+        import bbmodel_study
+        import entity_gen
+        spec = json.loads((ROOT / "plugins/minecraft-studio/templates/entity/cave_crawler.json").read_text())
+        out = Path(tempfile.mkdtemp())
+        for n in (1, 2):
+            spec["density"] = n
+            geo, img, glow, _ = entity_gen.build(spec, out)
+            self.assertEqual(img.w, 64 * n)
+            self.assertIsNotNone(glow)
+        anim = entity_gen.animations(spec)
+        self.assertEqual(set(k.split(".")[-1] for k in anim["animations"]), {"idle", "walk", "attack", "hurt", "death"})
+        walk = anim["animations"]["animation.cave_crawler.walk"]
+        self.assertEqual(walk["loop"], True)
+        self.assertIn("leg_left_0", walk["bones"])
+        # tripod gait: opposite legs of a pair are half a cycle apart
+        l, r = walk["bones"]["leg_left_0"]["rotation"], walk["bones"]["leg_right_0"]["rotation"]
+        self.assertAlmostEqual(l["0"][1], -r["0.5"][1], places=1)
+        (out / "geo/entity").mkdir(parents=True); (out / "animations/entity").mkdir(parents=True)
+        (out / "geo/entity/cave_crawler.geo.json").write_text(json.dumps(geo))
+        (out / "animations/entity/cave_crawler.animation.json").write_text(json.dumps(anim))
+        img.save(out / "textures/entity/cave_crawler.png")
+        s = bbmodel_study.study(bbmodel_study.load(out / "geo/entity/cave_crawler.geo.json"))
+        self.assertEqual(s["cubes"], 22)
+        self.assertEqual(s["density_spread"], 0)
+        self.assertEqual(s["coverage"], ["idle", "walk", "attack", "hurt", "death"])
+        self.assertFalse(s["errors"])
+        posed = entity_gen.pose(geo, anim, "death", 1.6)
+        root = next(b for b in posed["minecraft:geometry"][0]["bones"] if b["name"] == "root")
+        self.assertAlmostEqual(root["rotation"][2], 180, places=0)
+
+    def test_study_gates(self):
+        import bbmodel_study
+        m = {"format": "free", "bones": 2, "depth": 7, "roots": 2, "orphans": 1, "bone_names": [], "textures": [], "anims": [],
+             "cubes": [{"name": "a", "from": [0, 0, 0], "to": [4, 4, 4], "inflate": 0, "box": False,
+                        "faces": {"north": {"uv": [0, 0, 4, 4]}, "east": {"uv": [0, 0, 16, 16]}}}]}
+        s = bbmodel_study.study(m)
+        lv = {l for l, _ in bbmodel_study.gates(s)}
+        self.assertIn("FAIL", lv)  # 50% of faces at 4x density
+        msgs = " ".join(x for _, x in bbmodel_study.gates(s))
+        self.assertIn("no idle", msgs); self.assertIn("outside any bone", msgs)
+
+    def test_bb_render_offline(self):
+        import subprocess
+        r = subprocess.run([sys.executable, str(ROOT / "plugins/minecraft-studio/scripts/bb_render.py"), "x.geo.json",
+                            "--texture", "x.png", "--out", "y.png", "--url", "http://127.0.0.1:9/none"],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0); self.assertIn("LOOK", r.stdout)

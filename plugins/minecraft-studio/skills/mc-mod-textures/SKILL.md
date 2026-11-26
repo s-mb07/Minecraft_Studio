@@ -31,3 +31,16 @@ Kinds: `block`, `ore`, `plank`, `gem`, `shard`, `ingot`, `dust`, `rod`. Determin
 `assets/<modid>/textures/item/<id>.png` (item models `layer0`), `textures/block/<id>.png` (block models),
 `textures/entity/...`, `textures/models/armor/<material>_layer_1.png`. Then `mod_check.py <mod>` confirms every
 model's texture exists.
+
+## Pixel-art method (block/item textures; entities: see mc-entity-art)
+1. **Silhouette and outline:** a black outline pops; a darker local colour blends. Mixing them highlights the subject.
+2. **Base colours in a side palette**, then **ramps of at most 4 shades** per colour (highlight, base, shadow,
+   deep shadow). Hue-shift them (`entity_gen.ramp()` / the Colour Gradient Generator plugin).
+3. **One light direction** (top-left). Highlights on lit edges, shadows opposite. **No pillow shading** (darkening
+   every edge around a bright centre).
+4. **Details last, sparingly.** Zoom out often: textures are seen small.
+5. **Worked example (brick):** fill `#B96946`; mortar `#C1B9A7` in 4-px rows with 1-px joints every 8 px,
+   offset by 4 px on alternate rows. Each brick gets a top-edge highlight `#DF965D` and a bottom-edge shadow
+   `#8B493D`. Add two chipped edges and a few mortar streaks.
+6. **Seamless:** paint across a 2×2 group of duplicated cubes so the pattern crosses the edges, and clean up the
+   corner pixels.

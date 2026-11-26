@@ -104,6 +104,8 @@ It repairs failures on its own and hands you the jar.
 | `mc-mod-build-test` | `mod_check.py` → Gradle build → GameTests → dev server, bounded auto-repair |
 | `mc-mod-release` | jar inspection, changelog, Modrinth publish (dry run unless confirmed) |
 | `mc-geckolib` | optional animated entities/items |
+| `mc-entity-art` | mobs end to end: spec → model, pixel-art texture, AO baked with the Baked AO plugin, render sheet (`entity_gen.py`, `bb_render.py`, `bbmodel_study.py`) |
+| `mc-animation` | idle/walk/attack/hurt/death, gaits, overlap, generated 20 fps keys |
 | `mc-mod-study` | study a reference mod (decompile, trace, assets, GUI) and reuse on request, with provenance |
 
 Extra scripts: `mod_new.py`, `mod_check.py` (ids ↔ models ↔ textures ↔ lang ↔ recipes, `--fix`), `gradle_run.py`,
@@ -113,7 +115,8 @@ Extra scripts: `mod_new.py`, `mod_check.py` (ids ↔ models ↔ textures ↔ lan
 Requirements for mods: **JDK 21 and JDK 25** (current Fabric Loom needs Java 25 to run Gradle; mods still target Java 21).
 Blockbench + the [Blockbench MCP plugin](https://github.com/jasonjgardner/blockbench-mcp-plugin) are optional.
 
-Validated end to end: **Fabric 1.21.1** and **NeoForge 1.21.1** ([examples/](examples/)). Forge 1.20.1, 26.x and
+Validated end to end: **Fabric 1.21.1** and **NeoForge 1.21.1** ([examples/](examples/)), plus an animated
+GeckoLib mob (NeoForge 1.21.1 + GeckoLib 4.9.4: build, GameTest spawn, server). Forge 1.20.1, 26.x and
 multiloader are documented but not validated yet.
 
 ### Studying an existing mod

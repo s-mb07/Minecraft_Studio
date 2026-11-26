@@ -1,0 +1,19 @@
+{
+  "models": 11,
+  "cubes": 39,
+  "bones": 20,
+  "depth": 6,
+  "density_spread": 0.0,
+  "anim_count": 7,
+  "keyframes_per_bone": 4.0,
+  "score": 77,
+  "shades_median": 5.5,
+  "colors_median": 32,
+  "coverage": {
+    "idle": 11,
+    "walk": 10,
+    "hurt": 3,
+    "attack": 3,
+    "death": 4
+  }
+}

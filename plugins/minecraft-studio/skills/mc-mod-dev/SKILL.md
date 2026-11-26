@@ -40,7 +40,7 @@ Scripts: `${CLAUDE_PLUGIN_ROOT}/scripts/` (or `../../scripts/` from this file). 
 | 2 Scaffold | mc-mod-scaffold | `mod_new.py` succeeded |
 | 3 Content (Java) | mc-mod-content | `mod_check.py --fix` no FAIL |
 | 4 Textures | mc-mod-textures | `validate.py` on resources |
-| 5 Models | mc-blockbench (optional: mc-geckolib) | `bbmodel_check.py` + `mod_check.py` |
+| 5 Models | mc-blockbench; mobs: mc-entity-art + mc-animation + mc-geckolib | `bbmodel_check.py` + `mod_check.py` |
 | 6 Data | mc-mod-datagen or hand-written JSON | `mod_check.py` |
 | 7 Build & test | mc-mod-build-test | build PASS, gametest PASS, server boots |
 | 8 Package | mc-mod-release | jar inspected; publish only after confirmation |

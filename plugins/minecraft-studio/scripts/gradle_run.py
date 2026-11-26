@@ -154,12 +154,21 @@ def main():
                         pass
         th = threading.Thread(target=reader, daemon=True)
         th.start()
-        try:
-            p.wait(timeout=a.timeout)
-        except subprocess.TimeoutExpired:
-            p.kill()
+        def kill_tree():
+            # kill the whole tree FIRST (gradlew -> Gradle -> game JVM); killing the wrapper alone leaves the
+            # game server running and holding port 25565
             if os.name == "nt":
                 subprocess.run(["taskkill", "/F", "/T", "/PID", str(p.pid)], capture_output=True)
+            p.kill()
+        done_at = None
+        while p.poll() is None:
+            time.sleep(1)
+            if state["done"] and done_at is None:
+                done_at = time.time()
+            # "stop" on stdin does not always reach the game through Gradle: give it 45 s, then kill the tree
+            if (done_at and time.time() - done_at > 45) or time.time() - t0 > a.timeout:
+                kill_tree()
+                break
         th.join(10)
     secs = round(time.time() - t0)
     ok = state["done"] if a.task == "server" else p.returncode == 0

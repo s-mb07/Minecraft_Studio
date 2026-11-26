@@ -54,6 +54,12 @@ et te rend le `.jar`.
 Il faut Java 21 et Java 25 (le plugin Gradle actuel de Fabric, Loom, a besoin de Java 25 pour tourner). Blockbench
 et son plugin MCP sont optionnels. Fabric et NeoForge 1.21.1 sont validés de bout en bout (voir `examples/`).
 
+### Créer une créature (modèle, texture, animation)
+Le skill `mc-entity-art` part d'une fiche (os, cubes, matériaux) et génère le modèle GeckoLib, une texture pixel art
+(rampes de 4 teintes, lumière du haut), l'occlusion ambiante cuite avec le plugin Baked AO de Blockbench, les
+animations (idle, walk, attack, hurt, death) et une planche de rendu 4 vues. `bbmodel_study.py` note le résultat
+face à 11 modèles de référence. Exemple validé : `examples/ms-example-entity-neoforge-1.21.1`.
+
 ### Étudier un mod existant
 Dis *« comment marche le câble d'énergie de ce mod ? »* avec un jar, un dépôt GitHub ou un lien Modrinth, ou
 *« copie ce modèle et change ses couleurs »*. Le skill `mc-mod-study` importe le mod dans `studio/references/<id>/`,

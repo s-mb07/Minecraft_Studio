@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        example: [ms-example-fabric-1.21.1, ms-example-neoforge-1.21.1]
+        example: [ms-example-fabric-1.21.1, ms-example-neoforge-1.21.1, ms-example-entity-neoforge-1.21.1]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -299,6 +299,30 @@ class TestOrientation(unittest.TestCase):
         self.assertTrue(e.check_orientation(spec, geo))
 
 
+class TestContactShade(unittest.TestCase):
+    def _run(self, other, animated=False):
+        import entity_gen as e
+        spec = {"id": "t", "texture": [64, 64], "materials": {"m": {"color": "#888888"}}, "bones": [
+            {"name": "a", "pivot": [0, 0, 0], "cubes": [{"origin": [0, 0, 0], "size": [8, 8, 8], "mat": "m"}]},
+            {"name": "b", "parent": "a", "pivot": [0, 8, 0], "cubes": [dict(other, mat="m")],
+             **({"role": "head"} if animated else {})}]}
+        geo, img, _, _ = e.build(spec, Path(tempfile.mkdtemp()))
+        before = {(x, y): img.get(x, y) for y in range(64) for x in range(64)}
+        e.shade_contact(spec, geo, img, 1)
+        c = geo["minecraft:geometry"][0]["bones"][0]["cubes"][0]
+        x, y, w, h = e.faces_of(*c["uv"], c["size"])["up"]
+        return [(i, j) for j in range(h) for i in range(w) if img.get(x + i, y + j) != before[(x + i, y + j)]]
+
+    def test_shadow_lands_next_to_the_wall(self):
+        d = self._run({"origin": [6, 8, 0], "size": [2, 6, 8]})        # wall at +X on top: up face u -> +X
+        self.assertTrue(d and sum(i for i, _ in d) / len(d) > 4)
+        d = self._run({"origin": [0, 8, 0], "size": [8, 6, 2]})        # wall at -Z: up face v -> -Z
+        self.assertTrue(d and sum(j for _, j in d) / len(d) > 4)
+
+    def test_separate_rigid_blocks_never_shadow_each_other(self):
+        self.assertEqual(self._run({"origin": [6, 8, 0], "size": [2, 6, 8]}, animated=True), [])
+
+
 class TestExplodedAO(unittest.TestCase):
     def test_explode_keeps_world_pose_and_separates_blocks(self):
         import entity_gen as e

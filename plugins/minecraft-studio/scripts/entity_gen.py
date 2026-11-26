@@ -602,6 +602,111 @@ def explode_geo(geo: dict, spec: dict, gap: float = 48) -> dict:
     return g
 
 
+# ---------------------------------------------------------------- contact shading (home-made AO)
+# Face frames of the box-UV layout in cube-local geo coords: (axis, at_max) of the face plane, then the local axis
+# the texture u goes along (+1/-1) and the one v goes along (top row first).
+FACE_FRAME = {
+    "north": ((2, False), (0, +1), (1, -1)), "south": ((2, True), (0, -1), (1, -1)),
+    "east": ((0, False), (2, -1), (1, -1)), "west": ((0, True), (2, +1), (1, -1)),
+    "up": ((1, True), (0, +1), (2, -1)), "down": ((1, False), (0, +1), (2, +1)),
+}
+_DIRS = None
+
+
+def _hemi(k=24):
+    """k fixed directions (Fibonacci) over the +Z hemisphere, cosine-weighted."""
+    out = []
+    for i in range(k):
+        r = math.sqrt((i + 0.5) / k)
+        a = i * 2.399963
+        out.append((r * math.cos(a), r * math.sin(a), math.sqrt(max(0.0, 1 - r * r))))
+    return out
+
+
+def _ray_box(o, d, box, L):
+    """Does the segment o + t d (0 < t < L) hit an oriented box (ctr, axes, half)?"""
+    ctr, ax, hf = box
+    t0, t1 = 0.0, L
+    for k in range(3):
+        a = ax[k]
+        oo = sum((o[i] - ctr[i]) * a[i] for i in range(3))
+        dd = sum(d[i] * a[i] for i in range(3))
+        if abs(dd) < 1e-9:
+            if abs(oo) > hf[k]:
+                return False
+            continue
+        ta, tb = (-hf[k] - oo) / dd, (hf[k] - oo) / dd
+        if ta > tb:
+            ta, tb = tb, ta
+        t0, t1 = max(t0, ta), min(t1, tb)
+        if t0 > t1:
+            return False
+    return True
+
+
+def shade_contact(spec: dict, geo: dict, img, n: int, reach: float = 3.0, rays: int = 24) -> int:
+    """Home-made ambient occlusion painted in ramp steps, valid in any pose.
+    Only cubes of the SAME rigid block (rigid_clusters) occlude each other, so a joint that rotates never leaves a
+    wrong shadow. Per texel: rays over the hemisphere, length `reach` model units; the hit fraction darkens the
+    pixel by 0-2 steps of its own material ramp (no new colours, never purple). Pixels that are not a ramp colour
+    of their material (eyes, painted details) are kept. Returns the number of darkened pixels."""
+    mats = spec["materials"]
+    ramps = {k: ramp(v["color"], 5) for k, v in mats.items()}
+    idx = {k: {c[:3]: i for i, c in enumerate(r)} for k, r in ramps.items()}
+    mat_of = {(b["name"], i): c["mat"] for b in spec["bones"] for i, c in enumerate(b.get("cubes", []))}
+    cl = rigid_clusters(spec)
+    dirs = _hemi(rays)
+    items = []
+    count = {}
+    for b, c, M, ctr in world_cubes(geo):
+        k = count.get(b["name"], 0); count[b["name"]] = k + 1
+        ax = [[M[r][j] for r in range(3)] for j in range(3)]   # local axis j in world
+        hf = [c["size"][i] / 2 + c.get("inflate", 0) for i in range(3)]
+        items.append((b["name"], k, c, ax, ctr, hf))
+    bayer = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
+    changed = 0
+    for bn, k, c, ax, ctr, hf in items:
+        mat = mat_of.get((bn, k))
+        if not mat or "uv" not in c:
+            continue
+        others = [(o[4], o[3], o[5]) for o in items if o[2] is not c and cl.get(o[0]) == cl.get(bn)]
+        rad = math.sqrt(sum(h * h for h in hf)) + reach
+        others = [o for o in others if math.dist(o[0], ctr) < rad + math.sqrt(sum(h * h for h in o[2]))]
+        if not others:
+            continue
+        size = box(c["size"])
+        for face, r in faces_of(*c["uv"], c["size"]).items():
+            (na, amax), (ua, us), (va, vs) = FACE_FRAME[face]
+            nrm = [ax[na][i] * (1 if amax else -1) for i in range(3)]
+            tu, tv = ax[ua], ax[va]
+            W, H = r[2] * n, r[3] * n
+            for j in range(H):
+                for i in range(W):
+                    fu, fv = (i + 0.5) / W, (j + 0.5) / H
+                    lu = (fu - 0.5) * size[ua] * us
+                    lv = (fv - 0.5) * size[va] * vs
+                    ln = hf[na]
+                    p = [ctr[q] + nrm[q] * (ln + 0.02) + tu[q] * lu + tv[q] * lv for q in range(3)]
+                    hits = 0
+                    for dx, dy, dz in dirs:
+                        d = [tu[q] * dx + tv[q] * dy + nrm[q] * dz for q in range(3)]
+                        if any(_ray_box(p, d, o, reach) for o in others):
+                            hits += 1
+                    occ = hits / len(dirs)
+                    if occ <= 0.05:
+                        continue
+                    X, Y = r[0] * n + i, r[1] * n + j
+                    s = idx[mat].get(img.get(X, Y)[:3])
+                    if s is None:
+                        continue
+                    t = occ * 2.6 + (bayer[Y % 4][X % 4] / 16 - 0.5) * 0.8   # 0..2 steps, dithered edge
+                    step = max(0, min(2, int(t)))
+                    if step:
+                        img.set(X, Y, ramps[mat][max(0, s - step)])
+                        changed += 1
+    return changed
+
+
 def _sat(a, b, margin=0.05) -> bool:
     """Oriented-box overlap (separating axis theorem); the margin ignores grazing contact."""
     _, ca, A, ea = a
@@ -697,6 +802,7 @@ def main():
     ap.add_argument("--pose-dir")
     ap.add_argument("--group", help="texture only these materials (comma list); others stay flat grey for review")
     ap.add_argument("--density", type=int, help="pixels per model unit (1 = vanilla look; 2-4 = room for real shading/AO)")
+    ap.add_argument("--shade", action="store_true", help="home-made contact AO inside each rigid block (any pose)")
     a = ap.parse_args()
     spec = json.loads(Path(a.spec).read_text(encoding="utf-8"))
     if a.density:
@@ -707,6 +813,8 @@ def main():
     geo, img, glow, used = build(spec, out)
     for msg in check_orientation(spec, geo):
         print(f"  [FAIL] orientation {msg}")
+    if a.shade or spec.get("shading") == "contact":
+        print(f"  contact shading: {shade_contact(spec, geo, img, int(spec.get('density', 1)))} px darkened")
     anim, left = fix_collisions(spec, geo)
     damped = {b["name"]: b["_amp"] for b in spec["bones"] if b.get("_amp")}
     i = spec["id"]

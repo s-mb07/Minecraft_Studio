@@ -140,6 +140,20 @@ def tile(m: MCP, view: str, center, radius, size):
     return m.image(m.call("set_camera_angle", view=m.view, position=pos, target=center, projection="perspective"))
 
 
+def save_bbmodel(m: MCP, geo: Path, tex: Path, anim: Path | None, out: Path):
+    """GeckoLib project with geometry + texture + animations, saved as an editable .bbmodel (kept for review)."""
+    load_model(m, geo, tex, out.stem)
+    m.js("Project.geckolibSettings && (Project.geckolibSettings.modid = Project.geckolibSettings.modid || 'mod'); 'ok'")
+    if anim and anim.exists():
+        aj = json.loads(anim.read_text(encoding="utf-8"))
+        names = json.dumps(list(aj.get("animations", {})))  # explicit list = no selection dialog (it blocks MCP)
+        m.js("Animator.loadFile({path: %s, content: %s}, %s); Animation.all.length"
+             % (json.dumps(str(anim)), json.dumps(json.dumps(aj)), names))
+    data = m.js("Codecs.project.compile({raw: false})")
+    txt = json.loads(data) if data.strip().startswith('"') else data
+    out.write_text(txt, encoding="utf-8")
+
+
 def drop(m: MCP):
     try:  # plugin 1.10 may throw on dispose; the view is freed with the project anyway
         m.call("delete_offscreen_view", view=m.view)
@@ -170,6 +184,8 @@ def main():
     ap.add_argument("--poses"); ap.add_argument("--size", type=int, default=384); ap.add_argument("--ao", action="store_true")
     ap.add_argument("--per-mesh", action="store_true", help="bake each part alone (no cross-part occlusion)")
     ap.add_argument("--snap", action="store_true", help="snap AO colours back to the palette (stricter pixel art, weaker AO)")
+    ap.add_argument("--save-bbmodel", help="also save an editable .bbmodel (geo + texture + animations)")
+    ap.add_argument("--anim", help="animation.json for --save-bbmodel (default: found next to the geo)")
     ap.add_argument("--url", default="http://localhost:3000/bb-mcp")
     a = ap.parse_args()
     try:
@@ -190,6 +206,11 @@ def main():
         if not ok:
             a.ao = False
     load_model(m, geo, tex.with_name(tex.stem + "_ao.png") if a.ao else tex, geo.stem)
+    if a.save_bbmodel:
+        an = Path(a.anim) if a.anim else geo.parent.parent.parent / "animations/entity" / geo.name.replace(".geo.json", ".animation.json")
+        save_bbmodel(m, geo, tex.with_name(tex.stem + "_ao.png") if a.ao else tex, an, Path(a.save_bbmodel))
+        print(f"bbmodel -> {a.save_bbmodel}")
+        load_model(m, geo, tex.with_name(tex.stem + "_ao.png") if a.ao else tex, geo.stem)
     m.view = "ms_r0"
     m.call("create_offscreen_view", id=m.view, width=a.size, height=a.size, antialias=False, copy_view="none")
     tiles = [tile(m, v, center, radius, a.size) for v in VIEWS]

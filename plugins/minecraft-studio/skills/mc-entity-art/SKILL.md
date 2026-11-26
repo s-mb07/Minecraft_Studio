@@ -11,6 +11,19 @@ description: >-
 Scripts: `${CLAUDE_PLUGIN_ROOT}/scripts/`. Worked example: `examples/ms-example-entity-neoforge-1.21.1`
 (spec: `templates/entity/cave_crawler.json`). Animation details: **mc-animation**. Java side: **mc-geckolib**.
 
+## Validation gates (art is the exception to Fast mode)
+Stop and show the user the result at each gate. Go on only after they approve, unless they explicitly asked
+for everything in one go.
+1. **Model + texture:** render sheet (4 views, with AO if used) plus the `bbmodel_study` score.
+2. **Animations:** pose tiles (`--pose`) plus the list of animations with their lengths. If possible, the user
+   opens the saved `.bbmodel` in Blockbench to play them.
+3. **In game:** only now write the Java side (mc-geckolib), then build, GameTest and server.
+
+**Keep every test artifact** in `studio-tests/<id>/` next to the project (outside the mod and the repo):
+`spec.json`, `<id>.bbmodel` (`bb_render.py --save-bbmodel`, geometry + texture + animations), textures (raw,
+AO, density variants), `renders/`, and `geckolib/` (geo + animation json). Never overwrite an earlier variant;
+add a suffix instead (`_v2`, `_d4_ao`).
+
 ## Method (derived from studying 11 high-quality community rigs, see docs/reference-models.md)
 1. **Brief, 5 lines:** role (pet, monster, boss), size vs vanilla mobs, shape language (round = friendly, square =
    sturdy, triangle = dangerous), a 60/30/10 palette (main / secondary / accent like eyes or claws), and one

@@ -47,7 +47,10 @@ def ramp(hexcol: str, n: int = 4) -> list[tuple]:
     base_i = steps.index(0.0)
     for k, dl in enumerate(steps):
         t = (k - base_i)
-        target = 0.70 if t < 0 else 0.13
+        # shadows: cool materials drift to blue/purple, warm ones (skin, ivory, gold, leather) to deep red-brown;
+        # violet shadows on warm colours look dirty/pink
+        warm = h < 0.17 or h > 0.92
+        target = (0.02 if warm else 0.70) if t < 0 else 0.13
         hh = h + ((target - h + 0.5) % 1 - 0.5) * min(0.25, 0.08 * abs(t))
         ss = min(1, s * (1 + 0.12 * abs(t))) if t < 0 else s * (1 - 0.08 * t)
         rr, gg, bb = colorsys.hls_to_rgb(hh % 1, max(0.02, min(0.96, l + dl)), max(0, min(1, ss)))
@@ -137,10 +140,8 @@ def paint_face(img, rect, face, mat, rmp, seed, n=1):
                     s -= 1
             elif pat == "plates":
                 along = v if hu >= wu else u           # ridges across the long axis (horns, tails)
-                if along % 2 == 0 and along > 0:
-                    s -= 1
-                elif along % 2 == 1:
-                    s += 0
+                if along % 3 == 0 and along > 0:
+                    s -= 1                             # ridge seam every 3 units (closer = zebra stripes)
             elif pat == "grain" and 0 < i < w - 1 and 0 < j < h - 1:
                 if hsh(seed, (x0 + i) // n, (y0 + j) // n) < 0.1 and s == base:
                     s -= 1                             # sparse 1-unit cells, only on the flat base area
